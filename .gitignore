@@ -1,0 +1,15 @@
+*.fasl
+*.fas
+*.fasc
+*.o
+*.a
+build/
+*.app/
+.*.app.staging-*/
+.*.app.trash-*/
+ocicl/
+local.mk
+*~
+\#*#
+.#*
+.DS_Store
