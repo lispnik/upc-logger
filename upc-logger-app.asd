@@ -24,10 +24,7 @@
                              (:file "camera")
                              (:file "app"))))
   :bundle-identifier "com.lispnik.upc-logger"
-  ;; No space in the bundle name: asdf-ios-app hands the staging path to
-  ;; PlistBuddy's Merge command unquoted.  The home screen shows the display name.
-  :bundle-name "UPCLogger"
-  :bundle-display-name "UPC Logger"
+  :bundle-name "UPC Logger"
   :bundle-executable "upc-logger"
   :bundle-icon "res/Icon.xcassets"
   :bundle-orientations (:portrait)
