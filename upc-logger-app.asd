@@ -20,7 +20,10 @@
                 :serial t
                 :components ((:file "package")
                              (:file "store")
+                             (:file "scan-table")
+                             (:file "chart")
                              (:file "list")
+                             (:file "share")
                              (:file "camera")
                              (:file "app"))))
   :bundle-identifier "com.lispnik.upc-logger"

@@ -17,6 +17,8 @@
                 :components ((:file "package")
                              (:file "upc")
                              (:file "log")
+                             (:file "window")
+                             (:file "export")
                              (:file "gate")))))
 
 (asdf:defsystem #:upc-logger/tests
@@ -28,6 +30,8 @@
                 :components ((:file "package")
                              (:file "upc-tests")
                              (:file "log-tests")
+                             (:file "window-tests")
+                             (:file "export-tests")
                              (:file "gate-tests"))))
   ;; FIVEAM:RUN! prints failures but returns NIL, and ASDF discards what a
   ;; TEST-OP returns -- which is how a suite goes green with failing tests.

@@ -16,4 +16,13 @@
    #:record-scan #:set-count #:delete-entry
    #:save-log #:load-log #:+log-format-version+
    ;; debouncing the camera
-   #:scan-gate #:make-scan-gate #:admit-scan))
+   #:scan-gate #:make-scan-gate #:admit-scan
+   ;; the window the chart shows
+   #:time-window #:make-time-window #:time-window-start #:time-window-end
+   #:window-span #:default-window #:zoom-window #:pan-window #:window-following-p
+   #:clamp-span #:+day+ #:+minimum-span+ #:+maximum-span+
+   #:choose-bin-seconds #:bin-start #:histogram #:tick-interval #:axis-ticks
+   #:format-window #:format-clock #:format-day #:entries-in-window
+   ;; exports
+   #:+export-columns+ #:export-row #:export-rows #:export-summary #:export-basename
+   #:csv-field #:csv-line #:log-csv #:timestamp-for-export))
