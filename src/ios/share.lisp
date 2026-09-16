@@ -99,46 +99,99 @@
       (objc:invoke popover "setSourceView:" sender)
       (objc:invoke popover "setSourceRect:" (objc:invoke sender "bounds")))))
 
-(defun share-file (path sender)
-  (let ((sheet (objc:invoke (objc:invoke (objc:invoke "UIActivityViewController" "alloc")
-                                         "initWithActivityItems:applicationActivities:"
-                                         (vector (objc:invoke "NSURL" "fileURLWithPath:" path))
-                                         nil)
-                            "autorelease")))
-    (anchor-popover sheet sender)
-    (objc:invoke (ui:root-controller) "presentViewController:animated:completion:" sheet t nil)
-    (note "sharing ~a" path)))
+;;; One item, two formats.
+;;;
+;;; The share sheet opens straight away rather than behind a list of formats.
+;;; The item it carries is registered twice, as CSV and as PDF, and the
+;;; destination takes the representation it can use: Numbers and Sheets ask for
+;;; the CSV, Books and Print for the PDF, AirDrop and Files take the first one
+;;; registered -- which is why CSV is registered first.
+;;;
+;;; Apple's own "Options" panel, the one offering lossless or most-compatible
+;;; for a photo, is not public: UIActivityItemsConfigurationReading carries a
+;;; title, a message body, link metadata and previews, and nothing that names a
+;;; format. This is the mechanism underneath it that third-party code may use.
 
-(defun export-and-share (writer sender)
-  (handler-case (share-file (funcall writer) sender)
-    (serious-condition (condition)
-      (note "export: ~a" condition))))
+(objc:define-objc-block-type file-load-handler
+    objc:objc-object-pointer (objc:objc-at-question-mark))
+
+(defvar *load-handlers* '()
+  "Kept: NSItemProvider calls these once something asks for a representation,
+long after the sheet went up.")
+
+(defun register-representation (provider type path)
+  "Offer the file at PATH as TYPE, one representation of the shared item."
+  (let ((handler (objc:make-objc-block
+                  'file-load-handler
+                  (lambda (completion)
+                    (handler-case
+                        (objc:call-objc-block
+                         '(:void (objc:objc-object-pointer objc:objc-bool objc:objc-object-pointer))
+                         completion
+                         (objc:invoke "NSURL" "fileURLWithPath:" path)
+                         nil                        ; no file coordination needed
+                         (cffi:null-pointer))
+                      (serious-condition (condition)
+                        (note "handing over ~a: ~a" type condition)))
+                    ;; No NSProgress: the file was written before the sheet opened.
+                    (cffi:null-pointer)))))
+    (push handler *load-handlers*)
+    (objc:invoke provider
+                 "registerFileRepresentationForTypeIdentifier:fileOptions:visibility:loadHandler:"
+                 type
+                 0                                  ; not open in place
+                 0                                  ; visible to every process
+                 handler)))
+
+(defun export-item-provider ()
+  (let ((provider (objc:alloc-init-object "NSItemProvider")))
+    (objc:invoke provider "setSuggestedName:" (export-basename (current-window)))
+    (register-representation provider "public.comma-separated-values-text" (write-csv))
+    (register-representation provider "com.adobe.pdf" (write-pdf))
+    provider))
+
+(objc:define-objc-block-type file-loaded :void
+  (objc:objc-object-pointer objc:objc-object-pointer))
+
+(defvar *load-probes* '())
+
+(defun probe-representations ()
+  "Ask our own provider for both formats, the way a destination does.
+
+The load handlers only run when something asks, which on a simulator means a
+tap nobody is there to make; this drives the same path from code so that a
+block the bridge cannot carry shows up on the console instead of under a finger."
+  (let ((provider (export-item-provider)))
+    (dolist (type '("public.comma-separated-values-text" "com.adobe.pdf"))
+      (let* ((wanted type)
+             (block (objc:make-objc-block
+                     'file-loaded
+                     (lambda (url error)
+                       (handler-case
+                           (if (cffi:null-pointer-p url)
+                               (note "probe ~a: no file (~a)" wanted
+                                     (if (cffi:null-pointer-p error)
+                                         "no error either"
+                                         (objc:ns-string-to-string
+                                          (objc:invoke error "localizedDescription"))))
+                               (note "probe ~a: ~a" wanted
+                                     (objc:ns-string-to-string (objc:invoke url "lastPathComponent"))))
+                         (serious-condition (condition)
+                           (note "probe ~a failed: ~a" wanted condition)))))))
+        (push block *load-probes*)
+        (objc:invoke provider "loadFileRepresentationForTypeIdentifier:completionHandler:"
+                     type block)))))
 
 (defun share-export (sender)
-  "Ask for a format, CSV first, then hand the file to the share sheet."
-  (let ((sheet (objc:invoke "UIAlertController" "alertControllerWithTitle:message:preferredStyle:"
-                            "Export this range"
-                            (format nil "~a, ~a" (format-window (current-window))
-                                    (export-summary (visible-entries)))
-                            0)))                                  ; action sheet
-    (objc:with-objc-block (on-csv 'alert-action-handler
-                                  (lambda (action)
-                                    (declare (ignore action))
-                                    (export-and-share #'write-csv sender)))
-      (objc:with-objc-block (on-pdf 'alert-action-handler
-                                    (lambda (action)
-                                      (declare (ignore action))
-                                      (export-and-share #'write-pdf sender)))
-        (let ((csv (objc:invoke "UIAlertAction" "actionWithTitle:style:handler:"
-                                "CSV" 0 on-csv)))
-          (objc:invoke sheet "addAction:" csv)
-          (objc:invoke sheet "addAction:"
-                       (objc:invoke "UIAlertAction" "actionWithTitle:style:handler:"
-                                    "PDF" 0 on-pdf))
-          (objc:invoke sheet "addAction:"
-                       (objc:invoke "UIAlertAction" "actionWithTitle:style:handler:"
-                                    "Cancel" 1 nil))
-          (objc:invoke sheet "setPreferredAction:" csv))
+  (handler-case
+      (let* ((configuration (ui:keep (objc:invoke (objc:invoke "UIActivityItemsConfiguration" "alloc")
+                                                  "initWithItemProviders:"
+                                                  (vector (export-item-provider)))))
+             (sheet (objc:invoke (objc:invoke (objc:invoke "UIActivityViewController" "alloc")
+                                              "initWithActivityItemsConfiguration:" configuration)
+                                 "autorelease")))
         (anchor-popover sheet sender)
-        (objc:invoke (ui:root-controller) "presentViewController:animated:completion:"
-                     sheet t nil)))))
+        (objc:invoke (ui:root-controller) "presentViewController:animated:completion:" sheet t nil)
+        (note "sharing ~a, CSV and PDF" (export-basename (current-window))))
+    (serious-condition (condition)
+      (note "share: ~a" condition))))

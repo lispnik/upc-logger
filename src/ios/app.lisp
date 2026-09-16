@@ -65,6 +65,7 @@ prompt -- so a simulator shows every part of the app without a finger."
                                                     0)))
                                       (serious-condition (condition)
                                         (note "export failed: ~a" condition)))))
+                                (lambda () (probe-representations))
                                 (lambda () (share-export *chart*))))))
     (ui:after-every 0.8 (lambda (timer)
                           (if steps

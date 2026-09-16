@@ -23,12 +23,16 @@ The table underneath lists the scans inside the visible range, and the line abov
 
 ## Exporting
 
-**Share** offers the scans currently in view as:
+**Share** opens the system share sheet straight away, carrying the scans in view in two formats at once:
 
 - **CSV** — the default: code, count, scanned, last scanned, and the raw universal time, quoted per RFC 4180.
 - **PDF** — a page with the same histogram the screen is showing, then the table, over as many pages as it takes.
 
-Both cover exactly the visible range, from the same rows, so the two cannot disagree. The file goes to the system share sheet: AirDrop, Mail, Files, whatever the phone has.
+They are two representations of one shared item, so there is no list of formats to get past first: the destination takes the one it can use. Numbers and Sheets ask for the CSV, Books and Print for the PDF, and AirDrop and Files take the first registered, which is the CSV.
+
+Both cover exactly the visible range, from the same rows, so the two cannot disagree.
+
+Apple's own **Options** panel — the one offering lossless or most-compatible for a photo — is not public API. `UIActivityItemsConfigurationReading` carries a title, a message body, link metadata and previews, and nothing that names a format. Registering several representations on one `NSItemProvider` is the mechanism underneath it that third-party code may use, so the choice is made by the receiving app rather than by a switch in the sheet.
 
 ## How it is built
 
