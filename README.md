@@ -22,6 +22,14 @@ Touching the chart stops it following, so it will not jump while you are reading
 
 The table underneath lists the scans inside the visible range, and the line above it counts them. Zoom into an hour and the table narrows to that hour.
 
+## Searching
+
+The bar along the bottom searches the code, the name and the note at once, ignoring case, on any part of them — `paint`, `damaged`, or the four digits you can still read on a torn label.
+
+It filters as you type, and the chart follows: its axis becomes the span the matches occupy, so searching a name answers "when did I scan these" rather than leaving you on the last day. Panning or zooming then narrows further within the search, and clearing the field puts both back to the last day.
+
+One rule decides what is on screen — inside the window, and matching the search — so the table, the bars and **Share** can never disagree. Exporting while a search is up gives you exactly the matches.
+
 ## Exporting
 
 **Share** opens the system share sheet straight away, carrying the scans in view in two formats at once:

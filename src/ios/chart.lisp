@@ -22,8 +22,13 @@
 (defun current-window ()
   (or *window* (setf *window* (default-window (get-universal-time)))))
 
+(defvar *query* nil
+  "What the search bar holds, or NIL.  One rule decides what is on screen:
+inside the window, and matching this -- so the table, the bars and an export
+can never disagree about what \"showing\" means.")
+
 (defun visible-entries ()
-  (entries-in-window *log* (current-window)))
+  (search-entries (entries-in-window *log* (current-window)) *query*))
 
 (defun notify-window-change ()
   (when *on-window-change*
@@ -91,9 +96,13 @@ light and dark appearance."
          (grid (if pdf (ui:color 0.85 0.85 0.87) (ui:system-color "separator")))
          (ink (if pdf (ui:color 0.10 0.42 0.50) (ui:system-color "systemTeal"))))
     (dolist (tick (axis-ticks window))
-      (let ((tick-x (+ x (* width (/ (- (car tick) (time-window-start window)) span)))))
+      (let* ((tick-x (+ x (* width (/ (- (car tick) (time-window-start window)) span))))
+             ;; The label is centred on its tick, so one at either end hangs
+             ;; over the edge and is cut off -- "15:10" came out "15:1".  Held
+             ;; inside the plot it reads whole, a little off its own tick.
+             (label-x (max (+ x 17) (min tick-x (- (+ x width) 17)))))
         (fill-rect tick-x y 1 plot grid)
-        (draw-text (cdr tick) tick-x (+ y plot 2) :size 9 :color faint :center t)))
+        (draw-text (cdr tick) label-x (+ y plot 2) :size 9 :color faint :center t)))
     (fill-rect x (+ y plot) width 1 grid)
     (loop for i below bars
           for count = (aref counts i)

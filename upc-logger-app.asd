@@ -24,6 +24,7 @@
                              (:file "chart")
                              (:file "photo")
                              (:file "list")
+                             (:file "search")
                              (:file "share")
                              (:file "camera")
                              (:file "app"))))

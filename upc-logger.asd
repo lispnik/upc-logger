@@ -18,6 +18,7 @@
                              (:file "upc")
                              (:file "log")
                              (:file "window")
+                             (:file "search")
                              (:file "export")
                              (:file "gate")))))
 
@@ -31,6 +32,7 @@
                              (:file "upc-tests")
                              (:file "log-tests")
                              (:file "window-tests")
+                             (:file "search-tests")
                              (:file "export-tests")
                              (:file "gate-tests"))))
   ;; FIVEAM:RUN! prints failures but returns NIL, and ASDF discards what a

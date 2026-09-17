@@ -25,6 +25,9 @@
    #:clamp-span #:+day+ #:+minimum-span+ #:+maximum-span+
    #:choose-bin-seconds #:bin-start #:histogram #:tick-interval #:axis-ticks
    #:format-window #:format-clock #:format-day #:entries-in-window
+   ;; searching
+   #:contains-p #:entry-matches-p #:search-entries
+   #:entries-time-span #:window-for-entries
    ;; exports
    #:+export-columns+ #:export-row #:export-rows #:export-summary #:export-basename
    #:csv-field #:csv-line #:log-csv #:timestamp-for-export))

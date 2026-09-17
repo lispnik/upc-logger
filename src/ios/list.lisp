@@ -23,9 +23,11 @@ originals are needed only until the next menu replaces them.")
 (defun update-summary ()
   (let ((entries (visible-entries)))
     (objc:invoke *summary* "setText:"
-                 (if (null entries)
-                     "No scans in this range"
-                     (export-summary entries)))))
+                 (cond ((and (null entries) *query*)
+                        (format nil "Nothing matches ~s" *query*))
+                       ((null entries) "No scans in this range")
+                       (*query* (format nil "~a matching ~s" (export-summary entries) *query*))
+                       (t (export-summary entries))))))
 
 (defun refresh-list ()
   (when *table*
@@ -213,7 +215,8 @@ shows the same name."
   (when *table*
     (scan-table-scroll-to-top *table*)))
 
-(defun build-list (root above)
+(defun build-list (root above below)
+  "The summary and the table, filling what is left between ABOVE and BELOW."
   (setf *summary* (ui:new "UILabel"))
   (objc:invoke *summary* "setFont:" (ui:font 13 0.3))
   (objc:invoke *summary* "setTextColor:" (ui:system-color "secondaryLabel"))
@@ -233,5 +236,7 @@ shows the same name."
     (ui:pin view "topAnchor" *summary* "bottomAnchor" 6)
     (ui:pin view "leadingAnchor" root "leadingAnchor")
     (ui:pin view "trailingAnchor" root "trailingAnchor")
-    (ui:pin view "bottomAnchor" root "bottomAnchor"))
+    ;; The search bar, not the bottom of the screen: the table stops where it
+    ;; begins, and the bar rides up with the keyboard.
+    (ui:pin view "bottomAnchor" below "topAnchor"))
   (update-summary))

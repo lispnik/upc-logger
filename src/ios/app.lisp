@@ -74,6 +74,28 @@ prompt -- so a simulator shows every part of the app without a finger."
                                 (lambda ()
                                   (let ((entry (log-entry *log* 0)))
                                     (when entry (row-menu entry))))))))
+    (when (ext:getenv "UPC_LOGGER_DEMO_SEARCH")
+      ;; A search typed from code: the field cannot be tapped on a simulator,
+      ;; and live filtering is the whole of what wants showing.
+      (setf steps (append steps
+                          (list (lambda ()
+                                  (let ((entry (log-entry *log* 1)))
+                                    (when entry
+                                      (change-entry entry
+                                                    (lambda (index)
+                                                      (set-name *log* index "Blue paint 1L"))))))
+                                (lambda ()
+                                  (let ((code (let ((entry (log-entry *log* 0)))
+                                                (and entry (subseq (entry-code entry) 0 5)))))
+                                    (note "demo: searching ~s" code)
+                                    (when *search-bar*
+                                      (objc:invoke *search-bar* "setText:" code))
+                                    (apply-query code)))
+                                (lambda ()
+                                  (note "demo: searching \"paint\"")
+                                  (when *search-bar*
+                                    (objc:invoke *search-bar* "setText:" "paint"))
+                                  (apply-query "paint"))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_PROMPT")
       (setf steps (append steps (list (lambda () (edit-count (log-entry *log* 0)))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_SHARE")
@@ -112,8 +134,10 @@ prompt -- so a simulator shows every part of the app without a finger."
     (objc:invoke root "setBackgroundColor:" (ui:system-color "systemBackground"))
     (let* ((scanner (build-scanner root))
            (chart (build-chart root scanner))
-           (controls (build-controls root chart)))
-      (build-list root controls))
+           (controls (build-controls root chart))
+           (search (build-search root)))
+      ;; The table fills what is left between the controls and the search bar.
+      (build-list root controls search))
     (start-camera)
     (when demo
       (demo)))
