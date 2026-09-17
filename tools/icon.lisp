@@ -99,19 +99,23 @@
     (objc:invoke path "stroke")))
 
 (defun draw-log (size)
-  "A log lying across the lower bars, tilted up to the right, its cut end
-showing the rings.  Drawn about its own centre and rotated into place."
+  "A log lying level across the middle of the barcode, its cut end showing the
+rings.  Drawn about its own centre, which sits on the centre of the bars.
+
+Shorter than the card is wide: the cut end sticks out past the body by its own
+radius, and at the card's full width that overhang ran off the artwork."
   (let* ((s size)
-         (half-length (* s 0.36))
+         (half-length (* s 0.32))
          (radius (* s 0.095))
          (end-rx (* radius 0.62))
          (bark-light (color 0.60 0.38 0.19))
          (bark-dark (color 0.36 0.21 0.10))
          (grain (color 0.28 0.16 0.07 0.85)))
     (with-saved-state
+      ;; The centre of the card is (0.50, 0.56) and the bars sit a little above
+      ;; it; 0.57 puts the log across their middle.  No rotation: level.
       (let ((transform (objc:invoke "NSAffineTransform" "transform")))
-        (objc:invoke transform "translateXBy:yBy:" (d (* s 0.49)) (d (* s 0.34)))
-        (objc:invoke transform "rotateByDegrees:" 14d0)
+        (objc:invoke transform "translateXBy:yBy:" (d (* s 0.50)) (d (* s 0.57)))
         (objc:invoke transform "concat"))
       ;; Shadow under the whole log.
       (with-saved-state
