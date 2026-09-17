@@ -67,6 +67,16 @@
   (handler-case (objc:invoke bar "setShowsCancelButton:animated:" nil t)
     (serious-condition (condition) (note "search end: ~a" condition))))
 
+(objc:define-objc-method ("searchBar:selectedScopeButtonIndexDidChange:" :void)
+    ((self search-delegate) (bar objc:objc-object-pointer) (index (:signed :long-long)))
+  (declare (ignore bar))
+  ;; 0 groups runs of a code into one row; 1 shows every scan.
+  (handler-case
+      (progn (setf *aggregated* (zerop index))
+             (notify-window-change))
+    (serious-condition (condition)
+      (note "scope: ~a" condition))))
+
 ;;; The keyboard ------------------------------------------------------------------
 
 (defun keyboard-height (notification)
@@ -108,6 +118,15 @@
   (objc:invoke *search-bar* "setSearchBarStyle:" 2)          ; minimal
   (objc:invoke *search-bar* "setAutocapitalizationType:" 0)
   (objc:invoke *search-bar* "setAutocorrectionType:" 1)      ; no
+  ;; The scope strip carries the one control that has nowhere else to go: the
+  ;; row above is already holding the range, Reset and Share.
+  ;; A Lisp vector, which INVOKE turns into a temporary NSArray.  Not
+  ;; -arrayWithObjects:, which is variadic: on Apple silicon the variable
+  ;; arguments go on the stack, so calling it plainly reads garbage, and the
+  ;; bridge refuses rather than pretend otherwise.
+  (objc:invoke *search-bar* "setScopeButtonTitles:" (vector "Grouped" "Every scan"))
+  (objc:invoke *search-bar* "setShowsScopeBar:" t)
+  (objc:invoke *search-bar* "setSelectedScopeButtonIndex:" (if *aggregated* 0 1))
   (setf *search-delegate* (ui:keep (make-instance 'search-delegate)))
   (objc:invoke *search-bar* "setDelegate:" (objc:objc-object-pointer *search-delegate*))
   (objc:invoke root "addSubview:" *search-bar*)

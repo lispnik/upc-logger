@@ -29,7 +29,7 @@
   (let ((path (export-path "csv")))
     (with-open-file (out path :direction :output :if-exists :supersede
                               :external-format :utf-8)
-      (write-string (log-csv (visible-entries)) out))
+      (write-string (log-csv (visible-groups)) out))
     path))
 
 (defun draw-pdf-rows (context entries top)
@@ -77,7 +77,7 @@
 (defun write-pdf ()
   (let* ((path (export-path "pdf"))
          (window (current-window))
-         (entries (visible-entries))
+         (entries (visible-groups))
          (renderer (objc:invoke (objc:invoke (objc:invoke "UIGraphicsPDFRenderer" "alloc")
                                              "initWithBounds:"
                                              (vector 0d0 0d0

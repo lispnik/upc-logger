@@ -5,7 +5,9 @@
 An iPhone app, written in Common Lisp, for counting things by their barcodes.
 
 - **Scanning:** the top third of the screen is a live camera view that reads UPC-A, UPC-E and EAN-8/13 codes.
-- **Repeat scans:** scanning the same code as the top row bumps its count rather than adding a row. A label held in front of the camera counts once, however long it is held.
+- **Repeat scans:** every scan is kept as its own event, with its own time. A label held in front of the camera still counts once, however long it is held.
+- **Grouped or not:** the strip above the search bar switches between a row per *run* — adjacent scans of one code drawn as `3 x 012345678905` — and a row per scan. The chart always bins by individual scan, whichever view is on, which is the reason the times are kept.
+- **A marked scan stands alone:** a scan carrying a note or a photo is never merged into a run. "Damaged box" belongs to one tin out of the twelve, and hiding it inside a merged row would lose exactly the thing worth marking. The plain scans on either side still merge among themselves.
 - **Setting a count:** tap a row and type how many there are on the number pad. Scan one of a case of eight, tap it, type `8`, and the row reads `8 x 012345678905`. `0` removes the row, and so does swiping left.
 - **Naming, notes and photos:** the ⓘ button on a row opens the rest. A **name** belongs to the code, so naming `845121047035` "Blue paint 1L" names every row with that code and every later scan of it — a bare number tells you nothing a week later. A **note** and a **photo** describe the one scan: "damaged box", a picture of the shelf. Photos are JPEGs in `Documents/photos/`, and the log keeps only the file name, so it stays readable.
 - **Saving:** the log is written after every change to `Documents/scans.sexp`, a readable s-expression with universal-time timestamps.

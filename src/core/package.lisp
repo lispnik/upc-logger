@@ -10,8 +10,12 @@
    #:format-entry-title #:format-timestamp
    ;; entries and the log
    #:entry #:make-entry #:entry-p #:entry-code #:entry-count
-   #:entry-scanned-at #:entry-updated-at #:entry-bumped-p
-   #:entry-name #:entry-note #:entry-photo
+   #:entry-at #:entry-name #:entry-note #:entry-photo #:annotated-p
+   ;; rows: a run of scans drawn as one, or every scan on its own
+   #:group #:group-events #:group-first-event #:group-code #:group-name
+   #:group-note #:group-photo #:group-count #:group-scans
+   #:group-latest #:group-earliest #:group-merged-p #:group-entries
+   #:groups-total-items #:groups-total-scans
    #:scan-log #:make-scan-log #:scan-log-entries
    #:log-length #:log-entry #:total-items #:code-name
    #:record-scan #:set-count #:delete-entry

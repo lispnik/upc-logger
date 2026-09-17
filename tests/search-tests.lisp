@@ -6,11 +6,11 @@
 (in-suite searching)
 
 (defun sample-entries ()
-  (list (make-entry :code "036000291452" :scanned-at 3998500000
+  (list (make-entry :code "036000291452" :at 3998500000
                     :name "Blue paint 1L" :note "damaged box")
-        (make-entry :code "845121047035" :scanned-at 3998400000
+        (make-entry :code "845121047035" :at 3998400000
                     :name "White spirit")
-        (make-entry :code "111111111117" :scanned-at 3998300000)))
+        (make-entry :code "111111111117" :at 3998300000)))
 
 (test a-substring-of-the-code-finds-it
   (let ((entries (sample-entries)))
@@ -39,7 +39,7 @@
     (is-true (entry-matches-p (first entries) ""))))
 
 (test an-entry-with-no-name-or-note-is-not-a-problem
-  (let ((bare (make-entry :code "111111111117" :scanned-at 1)))
+  (let ((bare (make-entry :code "111111111117" :at 1)))
     (is-false (entry-matches-p bare "paint"))
     (is-true (entry-matches-p bare "1111"))))
 
@@ -52,7 +52,7 @@
     (is (= 3 (length (entries-in-window (make-scan-log entries) window))))))
 
 (test one-match-still-gets-a-window-with-width
-  (let* ((entry (make-entry :code "036000291452" :scanned-at 3998500000))
+  (let* ((entry (make-entry :code "036000291452" :at 3998500000))
          (window (window-for-entries (list entry))))
     (is-true (>= (window-span window) +minimum-span+))
     (is (= 1 (length (entries-in-window (make-scan-log (list entry)) window))))))

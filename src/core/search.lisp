@@ -33,7 +33,7 @@ is what an empty search field should do."
 (defun entries-time-span (entries)
   "The earliest and latest scan times in ENTRIES, or NIL for none."
   (when entries
-    (let ((times (mapcar #'entry-scanned-at entries)))
+    (let ((times (mapcar #'entry-at entries)))
       (values (reduce #'min times) (reduce #'max times)))))
 
 (defun window-for-entries (entries &optional (padding 1/20))

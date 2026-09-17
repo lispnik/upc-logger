@@ -1,42 +1,44 @@
-;;;; src/core/log.lisp -- the scans, newest first, and the file they live in.
+;;;; src/core/log.lisp -- every scan, kept as its own event.
 ;;;;
-;;;; Every entry keeps when it was first scanned and when it was last bumped,
-;;;; as universal times.  Nothing here needs them yet beyond the list's
-;;;; subtitle, but a histogram over a date range and a spreadsheet export both
-;;;; will, and a timestamp not recorded now cannot be recovered later.
+;;;; A scan is an event with the time it happened.  Nothing is merged on the
+;;;; way in: merging is a way of LOOKING at the log (see aggregate.lisp), and a
+;;;; log that merged as it wrote could not be unmerged afterwards.  The first
+;;;; version of this file did merge, and the cost was exactly that -- a row of
+;;;; eight kept two timestamps out of eight, and the histogram put all eight
+;;;; items in the first one's bin.
 ;;;;
-;;;; An entry may also carry a name, a note and a photo.  The name belongs to
-;;;; the CODE -- naming one row names every row with that code, and a later
-;;;; scan of it inherits the name -- because a name is what the product is
-;;;; called, and typing it again per scan would defeat the point.  A note and a
-;;;; photo describe one scan and stay on their own row.
+;;;; COUNT is on the event because a person scans one of a case and says there
+;;;; are eight: that is one scan reporting eight items, not eight scans, and
+;;;; recording it as eight would invent seven times that never happened.
 ;;;;
-;;;; The photo is a file beside the log, not in it: only its name is here, so
-;;;; the log stays a readable s-expression rather than a wall of base64.
+;;;; A NAME belongs to the CODE -- naming one event names every event with that
+;;;; code, and a later scan inherits it.  A NOTE and a PHOTO describe the one
+;;;; scan and stay on their own event.
 ;;;;
-;;;; The file is a readable s-expression rather than a database: it is small,
-;;;; it can be looked at, and reading it back is READ.
+;;;; The photo is a file beside the log; only its name is here.
 
 (in-package #:upc-logger)
 
-(defstruct (entry (:constructor make-entry (&key code (count 1) scanned-at
-                                                 (updated-at scanned-at)
-                                                 name note photo)))
+(defstruct (entry (:constructor make-entry (&key code (count 1) at name note photo
+                                                 ;; Accepted so a v1 plist reads
+                                                 ;; without special-casing.
+                                                 scanned-at)))
   (code "" :type string)
   (count 1 :type (integer 1))
-  (scanned-at 0 :type integer)
-  (updated-at 0 :type integer)
+  (at (or scanned-at 0) :type integer)
   (name nil :type (or null string))
   (note nil :type (or null string))
   (photo nil :type (or null string)))
 
-(defun entry-bumped-p (entry)
-  "True when ENTRY was scanned again after it was first logged."
-  (/= (entry-scanned-at entry) (entry-updated-at entry)))
+(defun annotated-p (entry)
+  "True when ENTRY carries something of its own: a note or a photo.
+
+Such an event never merges with its neighbours, because what it carries
+belongs to that scan and would be hidden inside a run."
+  (and (or (entry-note entry) (entry-photo entry)) t))
 
 (defstruct (scan-log (:constructor make-scan-log (&optional entries)))
-  "The log.  ENTRIES is a list, newest first: new scans go on the front, and
-the table shows it in this order, so index I is row I."
+  "The log.  ENTRIES is a list of events, newest first."
   (entries '() :type list))
 
 (defun log-length (log)
@@ -46,11 +48,10 @@ the table shows it in this order, so index I is row I."
   (nth index (scan-log-entries log)))
 
 (defun total-items (log)
-  "The sum of the counts: what was scanned, multiples included."
   (reduce #'+ (scan-log-entries log) :key #'entry-count :initial-value 0))
 
 (defun code-name (log code)
-  "What CODE has been called, from the newest entry that names it, or NIL."
+  "What CODE has been called, from the newest event that names it, or NIL."
   (let ((named (find-if (lambda (entry)
                           (and (string= code (entry-code entry))
                                (entry-name entry)))
@@ -58,25 +59,17 @@ the table shows it in this order, so index I is row I."
     (and named (entry-name named))))
 
 (defun record-scan (log code now)
-  "Log a scan of CODE at universal time NOW.
+  "Log a scan of CODE at universal time NOW as its own event.
 
-The same code as the newest entry bumps that entry's count, so a run of
-identical items scanned one after another stays one row; anything else is a
-new row on top, carrying whatever this code has been named before.  Returns
-the entry and :BUMPED or :NEW."
-  (let ((newest (first (scan-log-entries log))))
-    (if (and newest (string= code (entry-code newest)))
-        (progn
-          (incf (entry-count newest))
-          (setf (entry-updated-at newest) now)
-          (values newest :bumped))
-        (let ((entry (make-entry :code code :scanned-at now
-                                 :name (code-name log code))))
-          (push entry (scan-log-entries log))
-          (values entry :new)))))
+Always a new event: two scans of the same thing are two scans, and the
+display is where they are drawn as one.  Returns the event and :NEW, the
+second value kept so callers written against the merging version still work."
+  (let ((entry (make-entry :code code :at now :name (code-name log code))))
+    (push entry (scan-log-entries log))
+    (values entry :new)))
 
 (defun delete-entry (log index)
-  "Remove row INDEX.  Returns the removed entry, or NIL if there was none."
+  "Remove event INDEX.  Returns it, or NIL if there was none."
   (let ((entry (log-entry log index)))
     (when entry
       (setf (scan-log-entries log)
@@ -85,11 +78,7 @@ the entry and :BUMPED or :NEW."
     entry))
 
 (defun set-count (log index count)
-  "Make row INDEX's count COUNT.  Zero deletes the row.
-
-Returns the entry and :UPDATED, NIL and :DELETED, or NIL and NIL when INDEX is
-out of range or COUNT is not a non-negative integer -- a keypad can't type a
-negative, but a paste can put anything in the field."
+  "Make event INDEX report COUNT items.  Zero deletes it."
   (let ((entry (log-entry log index)))
     (cond ((or (null entry) (not (typep count '(integer 0))))
            (values nil nil))
@@ -107,10 +96,7 @@ negative, but a paste can put anything in the field."
       (unless (zerop (length trimmed)) trimmed))))
 
 (defun set-name (log index name)
-  "Call row INDEX's code NAME, and every other row with that code too.
-
-Returns the entry and :UPDATED, or NIL and NIL for a row that isn't there.
-Blank clears the name, on all of them."
+  "Call event INDEX's code NAME, and every other event with that code too."
   (let ((entry (log-entry log index)))
     (if (null entry)
         (values nil nil)
@@ -122,7 +108,7 @@ Blank clears the name, on all of them."
           (values entry :updated)))))
 
 (defun set-note (log index note)
-  "Attach NOTE to row INDEX alone.  Blank clears it."
+  "Attach NOTE to event INDEX alone.  Blank clears it."
   (let ((entry (log-entry log index)))
     (if (null entry)
         (values nil nil)
@@ -130,7 +116,7 @@ Blank clears the name, on all of them."
                (values entry :updated)))))
 
 (defun set-photo (log index photo)
-  "Attach the photo file named PHOTO to row INDEX alone.  NIL clears it."
+  "Attach the photo file named PHOTO to event INDEX alone.  NIL clears it."
   (let ((entry (log-entry log index)))
     (if (null entry)
         (values nil nil)
@@ -139,33 +125,35 @@ Blank clears the name, on all of them."
 
 ;;; The file ------------------------------------------------------------------
 
-(defconstant +log-format-version+ 1)
+(defconstant +log-format-version+ 2
+  "2 keeps every scan as its own event.  1 kept merged rows with a first and a
+last time, and is still read.")
 
 (defun entry-plist (entry)
-  "ENTRY as a plist, leaving out what it does not have: a log of plain scans
-reads the same as it did before names, notes and photos existed."
+  "ENTRY as a plist, leaving out what it does not have."
   (append (list :code (entry-code entry)
                 :count (entry-count entry)
-                :scanned-at (entry-scanned-at entry)
-                :updated-at (entry-updated-at entry))
+                :at (entry-at entry))
           (when (entry-name entry) (list :name (entry-name entry)))
           (when (entry-note entry) (list :note (entry-note entry)))
           (when (entry-photo entry) (list :photo (entry-photo entry)))))
 
 (defun plist-entry (plist)
+  "An event from PLIST, in either format.
+
+Version 1 wrote :SCANNED-AT and :UPDATED-AT for a merged row.  Its count is
+kept as one event reporting that many items: the scans between the first time
+and the last were never written down, and inventing them would be a lie the
+file cannot support."
   (make-entry :code (getf plist :code)
               :count (getf plist :count)
-              :scanned-at (getf plist :scanned-at)
-              :updated-at (getf plist :updated-at (getf plist :scanned-at))
+              :at (or (getf plist :at) (getf plist :scanned-at) 0)
               :name (getf plist :name)
               :note (getf plist :note)
               :photo (getf plist :photo)))
 
 (defun save-log (log path)
-  "Write LOG to PATH, by way of a temporary file renamed over it.
-
-The rename is what makes a save that is interrupted -- the app killed in the
-background -- leave the previous log rather than half of a new one."
+  "Write LOG to PATH, by way of a temporary file renamed over it."
   (let ((temporary (make-pathname :type "tmp" :defaults path)))
     (ensure-directories-exist path)
     (with-open-file (out temporary :direction :output :if-exists :supersede
@@ -184,9 +172,7 @@ background -- leave the previous log rather than half of a new one."
 (defun load-log (path)
   "The log saved at PATH.  Returns it and :LOADED, :MISSING or :CORRUPT.
 
-A file that doesn't read is moved aside to a .corrupt file rather than left
-where the next save would overwrite it: an empty log is a better start than a
-crash, but the scans in the bad file may still be recoverable by hand."
+Either version reads; the next save writes the current one."
   (if (not (probe-file path))
       (values (make-scan-log) :missing)
       (handler-case

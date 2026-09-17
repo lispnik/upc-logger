@@ -27,8 +27,17 @@
 inside the window, and matching this -- so the table, the bars and an export
 can never disagree about what \"showing\" means.")
 
+(defvar *aggregated* t
+  "True while a run of scans of one code is drawn as a single row.")
+
 (defun visible-entries ()
+  "The scans on screen, one event each.  The bars are drawn from these however
+the table is grouped: the times are the reason every scan is kept."
   (search-entries (entries-in-window *log* (current-window)) *query*))
+
+(defun visible-groups ()
+  "The rows on screen: merged runs, or one row per scan."
+  (group-entries (visible-entries) *aggregated*))
 
 (defun notify-window-change ()
   (when *on-window-change*

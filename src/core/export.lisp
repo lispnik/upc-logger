@@ -1,38 +1,46 @@
-;;;; src/core/export.lisp -- the scans in the view, as a file to send on.
+;;;; src/core/export.lisp -- the rows in the view, as a file to send on.
+;;;;
+;;;; A row is a GROUP, so an export says what the table says: grouped while the
+;;;; table is grouped, a line per scan while it is not.  The Scans column is
+;;;; what tells the two apart -- a merged row reports how many scans are behind
+;;;; it, and its first and last times.
 ;;;;
 ;;;; CSV is written here in full.  A PDF cannot be, since drawing it is UIKit's
-;;;; job, but the rows it prints come from the same function, so the two
-;;;; exports can never disagree about what was in the view.
+;;;; job, but its rows come from the same function, so the two exports can
+;;;; never disagree.
 ;;;;
-;;;; The photo travels as its file name rather than its bytes: a CSV cell full
-;;;; of base64 is no use to a spreadsheet, and the name is enough to find the
-;;;; file beside the log.
+;;;; The photo travels as its file name rather than its bytes: a spreadsheet
+;;;; cell full of base64 is no use, and the name finds the file beside the log.
 
 (in-package #:upc-logger)
 
 (defparameter +export-columns+
-  '("Code" "Name" "Count" "Scanned" "Last scanned" "Note" "Photo" "Universal time"))
+  '("Code" "Name" "Count" "Scans" "First scanned" "Last scanned"
+    "Note" "Photo" "Universal time"))
 
 (defun timestamp-for-export (universal-time &optional time-zone)
   "\"2026-09-16 14:03:22\": ISO order, a space instead of the T, and local
 time, which is what a spreadsheet parses as a date without being asked."
   (format-timestamp universal-time time-zone))
 
-(defun export-row (entry &optional time-zone)
-  "ENTRY as the strings both exports print."
-  (list (entry-code entry)
-        (or (entry-name entry) "")
-        (princ-to-string (entry-count entry))
-        (timestamp-for-export (entry-scanned-at entry) time-zone)
-        (if (entry-bumped-p entry)
-            (timestamp-for-export (entry-updated-at entry) time-zone)
-            "")
-        (or (entry-note entry) "")
-        (or (entry-photo entry) "")
-        (princ-to-string (entry-scanned-at entry))))
+(defun export-row (group &optional time-zone)
+  "GROUP as the strings both exports print."
+  (let ((earliest (group-earliest group))
+        (latest (group-latest group)))
+    (list (group-code group)
+          (or (group-name group) "")
+          (princ-to-string (group-count group))
+          (princ-to-string (group-scans group))
+          (timestamp-for-export earliest time-zone)
+          ;; Only when it differs: a row of one scan has one time, and
+          ;; printing it twice reads as though something happened twice.
+          (if (= earliest latest) "" (timestamp-for-export latest time-zone))
+          (or (group-note group) "")
+          (or (group-photo group) "")
+          (princ-to-string earliest))))
 
-(defun export-rows (entries &optional time-zone)
-  (mapcar (lambda (entry) (export-row entry time-zone)) entries))
+(defun export-rows (groups &optional time-zone)
+  (mapcar (lambda (group) (export-row group time-zone)) groups))
 
 (defun csv-field (value)
   "VALUE quoted if it has to be: RFC 4180, where a quote is doubled."
@@ -49,18 +57,23 @@ time, which is what a spreadsheet parses as a date without being asked."
 (defun csv-line (fields)
   (format nil "~{~a~^,~}" (mapcar #'csv-field fields)))
 
-(defun log-csv (entries &optional time-zone)
-  "ENTRIES as a CSV document, header first.  Lines end CRLF, as the format says."
+(defun log-csv (groups &optional time-zone)
+  "GROUPS as a CSV document, header first.  Lines end CRLF, as the format says."
   (with-output-to-string (out)
     (format out "~a~c~c" (csv-line +export-columns+) #\Return #\Newline)
-    (dolist (row (export-rows entries time-zone))
+    (dolist (row (export-rows groups time-zone))
       (format out "~a~c~c" (csv-line row) #\Return #\Newline))))
 
-(defun export-summary (entries)
-  "The line both exports put under the title."
-  (format nil "~d scan~:p, ~d item~:p"
-          (length entries)
-          (reduce #'+ entries :key #'entry-count :initial-value 0)))
+(defun export-summary (groups)
+  "The line both exports put under the title, and the table puts above itself.
+
+Scans as well as items when they differ: eleven items over three scans is a
+different fact from eleven scans, and the merged view hides which."
+  (let ((items (groups-total-items groups))
+        (scans (groups-total-scans groups)))
+    (if (= items scans)
+        (format nil "~d scan~:p, ~d item~:p" scans items)
+        (format nil "~d scan~:p, ~d item~:p" scans items))))
 
 (defun export-basename (window &optional time-zone)
   "A file name that says what is in it: upc-scans-20260916-1403."

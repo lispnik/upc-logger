@@ -41,39 +41,75 @@
 (defun demo ()
   "UPC_LOGGER_DEMO=1: a few simulated scans, a count set to 8, then the count
 prompt -- so a simulator shows every part of the app without a finger."
+  ;; A run of one code, then others: enough for the grouped view to have
+  ;; something to group and the ungrouped view something to spread out.
   (let ((steps (list (lambda () (simulate-scan 0))
+                     (lambda () (simulate-scan 0))
                      (lambda () (simulate-scan 0))
                      (lambda () (simulate-scan 1))
                      (lambda () (simulate-scan 2))
-                     (lambda () (let ((entry (log-entry *log* 1)))
-                                  (when entry (apply-count entry "8"))))
+                     (lambda () (let ((group (first (visible-groups))))
+                                  (when group (apply-count group "8"))))
                      (lambda () (note "demo: scripted scans done")))))
     (when (ext:getenv "UPC_LOGGER_DEMO_ROW")
       ;; A name, a note and a photo on the top row, so the three of them can be
       ;; seen on a simulator: no camera, and a library with nothing in it.
       (setf steps (append steps
                           (list (lambda ()
-                                  (let ((entry (log-entry *log* 0)))
-                                    (when entry
-                                      (change-entry entry
+                                  (let ((group (first (visible-groups))))
+                                    (when group
+                                      (change-group group
                                                     (lambda (index)
                                                       (set-name *log* index "Blue paint 1L")
                                                       (set-note *log* index "damaged box"))))))
                                 (lambda ()
-                                  (let ((entry (log-entry *log* 0)))
-                                    (when entry
+                                  (let ((group (first (visible-groups))))
+                                    (when group
                                       (handler-case
                                           (let ((name (write-photo (synthetic-photo))))
                                             (if name
-                                                (change-entry entry
+                                                (change-group group
                                                               (lambda (index)
                                                                 (set-photo *log* index name)))
                                                 (note "demo: no photo written")))
                                         (serious-condition (condition)
                                           (note "demo photo: ~a" condition))))))
                                 (lambda ()
-                                  (let ((entry (log-entry *log* 0)))
-                                    (when entry (row-menu entry))))))))
+                                  (let ((group (first (visible-groups))))
+                                    (when group (row-menu group))))))))
+    (when (ext:getenv "UPC_LOGGER_DEMO_GROUPS")
+      ;; Both views, and the rule that an annotated scan leaves its run: the
+      ;; scope strip cannot be tapped on a simulator.
+      (setf steps (append steps
+                          (list (lambda ()
+                                  (note "demo: grouped, ~d row~:p over ~d scan~:p"
+                                        (length (visible-groups))
+                                        (groups-total-scans (visible-groups))))
+                                (lambda ()
+                                  ;; The MIDDLE OF THE RUN, not the second event
+                                  ;; overall: newest first the events are
+                                  ;; [other, other, run, run, run], so the run's
+                                  ;; middle is index 3.  Noting index 1 marked a
+                                  ;; scan that was already its own row and
+                                  ;; proved nothing.
+                                  (let ((middle (nth 3 (visible-entries))))
+                                    (when middle
+                                      (change-event middle
+                                                    (lambda (index)
+                                                      (set-note *log* index "damaged box")))
+                                      (note "demo: noted the middle of the run (~a); ~d rows now"
+                                            (entry-code middle)
+                                            (length (visible-groups))))))
+                                ;; Held a beat so the grouped result can be seen.
+                                (lambda () (note "demo: grouped, ~d rows over ~d scans"
+                                                 (length (visible-groups))
+                                                 (groups-total-scans (visible-groups))))
+                                (lambda ()
+                                  (setf *aggregated* nil)
+                                  (when *search-bar*
+                                    (objc:invoke *search-bar* "setSelectedScopeButtonIndex:" 1))
+                                  (notify-window-change)
+                                  (note "demo: every scan, ~d rows" (length (visible-groups))))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_SEARCH")
       ;; A search typed from code: the field cannot be tapped on a simulator,
       ;; and live filtering is the whole of what wants showing.

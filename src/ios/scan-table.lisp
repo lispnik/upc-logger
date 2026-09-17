@@ -1,10 +1,9 @@
 ;;;; src/ios/scan-table.lisp -- a table of scans, told where its rows come from.
 ;;;;
-;;;; One Objective-C class serves every table of entries in the app: it is
-;;;; given a function returning the rows, and optionally what to do when one is
-;;;; tapped, swiped away, or has its detail button pressed.  A second table --
-;;;; a session, a single code's history -- is then a call rather than another
-;;;; data source.
+;;;; A row is a GROUP: one scan, or a run of them drawn as one.  The source is
+;;;; given a function returning the rows and, optionally, what to do when one
+;;;; is tapped, swiped away, or has its detail button pressed -- so a second
+;;;; table of scans is a call rather than another data source.
 ;;;;
 ;;;; The rows are cached rather than asked for per cell.  UIKit asks for the
 ;;;; count once and then for each cell, and a source that recomputed in between
@@ -26,7 +25,7 @@
    (changed :initarg :changed :initform nil :reader source-changed))
   (:objc-class-name "UPCScanTableSource"))
 
-(defun source-entry (source row)
+(defun source-group (source row)
   (nth row (source-cache source)))
 
 (objc:define-objc-method ("tableView:numberOfRowsInSection:" (:signed :long-long))
@@ -35,23 +34,24 @@
   (handler-case (length (source-cache self))
     (serious-condition () 0)))
 
-(defun scan-subtitle (entry)
-  "The name, the note and when it was scanned, in that order of interest."
-  (let ((scanned (if (entry-bumped-p entry)
-                     (format nil "~a, last ~a"
-                             (format-timestamp (entry-scanned-at entry))
-                             (subseq (format-timestamp (entry-updated-at entry)) 11))
-                     (format-timestamp (entry-scanned-at entry)))))
-    (format nil "~@[~a~%~]~@[~a. ~]~a" (entry-name entry) (entry-note entry) scanned)))
+(defun group-subtitle (group)
+  "The name, the note, and when it happened -- a span when the row is a run."
+  (let ((when (if (group-merged-p group)
+                  (format nil "~d scans, ~a to ~a"
+                          (group-scans group)
+                          (format-timestamp (group-earliest group))
+                          (subseq (format-timestamp (group-latest group)) 11))
+                  (format-timestamp (group-earliest group)))))
+    (format nil "~@[~a~%~]~@[~a. ~]~a" (group-name group) (group-note group) when)))
 
-(defun configure-cell (cell entry)
+(defun configure-cell (cell group)
   (objc:invoke (objc:invoke cell "textLabel") "setText:"
-               (format-entry-title (entry-count entry) (entry-code entry)))
-  (objc:invoke (objc:invoke cell "detailTextLabel") "setText:" (scan-subtitle entry))
+               (format-entry-title (group-count group) (group-code group)))
+  (objc:invoke (objc:invoke cell "detailTextLabel") "setText:" (group-subtitle group))
   ;; The thumbnail has to be cleared as well as set: cells are reused, and a
   ;; row with no photo would otherwise show the last one's.
   (let ((view (objc:invoke cell "imageView"))
-        (photo (entry-photo entry)))
+        (photo (group-photo group)))
     (if (photo-exists-p photo)
         (objc:invoke view "setImage:"
                      (objc:invoke "UIImage" "imageWithContentsOfFile:" (photo-file-path photo)))
@@ -64,7 +64,7 @@
     ((self scan-table-source) (table objc:objc-object-pointer) (path objc:objc-object-pointer))
   (handler-case
       (let ((cell (objc:invoke table "dequeueReusableCellWithIdentifier:" "scan"))
-            (entry (source-entry self (objc:invoke path "row"))))
+            (group (source-group self (objc:invoke path "row"))))
         (when (cffi:null-pointer-p cell)
           (setf cell (objc:invoke (objc:invoke (objc:invoke "UITableViewCell" "alloc")
                                                "initWithStyle:reuseIdentifier:" 3 "scan") ; subtitle
@@ -74,14 +74,12 @@
             (objc:invoke detail "setFont:" (ui:font 12))
             (objc:invoke detail "setNumberOfLines:" 2)
             (objc:invoke detail "setTextColor:" (ui:system-color "secondaryLabel")))
-          ;; The detail button is where naming, notes and photos live; tapping
-          ;; the row itself stays the fast path, which is the count.
           ;; 4 is the detail button. 3 is a checkmark, which is not a button at
           ;; all: the row showed a tick and the menu could not be reached.
           (when (source-info self)
             (objc:invoke cell "setAccessoryType:" 4)))
-        (when entry
-          (configure-cell cell entry))
+        (when group
+          (configure-cell cell group))
         cell)
     (serious-condition (condition)
       (note "cell: ~a" condition)
@@ -93,11 +91,11 @@
 (objc:define-objc-method ("tableView:didSelectRowAtIndexPath:" :void)
     ((self scan-table-source) (table objc:objc-object-pointer) (path objc:objc-object-pointer))
   (handler-case
-      (let ((entry (source-entry self (objc:invoke path "row")))
+      (let ((group (source-group self (objc:invoke path "row")))
             (select (source-select self)))
         (objc:invoke table "deselectRowAtIndexPath:animated:" path t)
-        (when (and entry select)
-          (funcall select entry)))
+        (when (and group select)
+          (funcall select group)))
     (serious-condition (condition)
       (note "select: ~a" condition))))
 
@@ -105,10 +103,10 @@
     ((self scan-table-source) (table objc:objc-object-pointer) (path objc:objc-object-pointer))
   (declare (ignore table))
   (handler-case
-      (let ((entry (source-entry self (objc:invoke path "row")))
+      (let ((group (source-group self (objc:invoke path "row")))
             (info (source-info self)))
-        (when (and entry info)
-          (funcall info entry)))
+        (when (and group info)
+          (funcall info group)))
     (serious-condition (condition)
       (note "detail: ~a" condition))))
 
@@ -122,12 +120,12 @@
     ((self scan-table-source) (table objc:objc-object-pointer) (style (:signed :long-long))
      (path objc:objc-object-pointer))
   (handler-case
-      (let ((entry (source-entry self (objc:invoke path "row")))
+      (let ((group (source-group self (objc:invoke path "row")))
             (remove-row (source-remove self)))
-        (when (and (= style 1) entry remove-row (funcall remove-row entry))
+        (when (and (= style 1) group remove-row (funcall remove-row group))
           ;; The cache has to lose the row before UIKit animates it away, or
           ;; the count it reads back will not match what it just removed.
-          (setf (source-cache self) (remove entry (source-cache self)))
+          (setf (source-cache self) (remove group (source-cache self)))
           (objc:invoke table "deleteRowsAtIndexPaths:withRowAnimation:"
                        (objc:invoke "NSArray" "arrayWithObject:" path) 100)
           (when (source-changed self)
@@ -138,11 +136,11 @@
 ;;; The component ---------------------------------------------------------------
 
 (defun make-scan-table (&key rows select remove info changed)
-  "A table view showing whatever ROWS returns, a list of entries.
+  "A table view showing whatever ROWS returns, a list of groups.
 
-SELECT is called with the entry that was tapped.  INFO, if given, puts a
-detail button on every row and is called with that row's entry.  REMOVE turns
-on swipe to delete and is called with the entry; returning true lets the row
+SELECT is called with the group that was tapped.  INFO, if given, puts a
+detail button on every row and is called with that row's group.  REMOVE turns
+on swipe to delete and is called with the group; returning true lets the row
 go.  CHANGED is called after the table has changed itself, for whatever is
 showing totals elsewhere."
   (let* ((view (objc:invoke (objc:invoke (objc:invoke "UITableView" "alloc")

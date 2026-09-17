@@ -64,7 +64,7 @@
   (is (= (* 3 3600) (bin-start (+ (* 3 3600) 900) 3600))))
 
 (defun scan-at (time &key (code "036000291452") (count 1))
-  (make-entry :code code :count count :scanned-at time))
+  (make-entry :code code :count count :at time))
 
 (test the-histogram-counts-items-in-their-bins
   (let* ((entries (list (scan-at +midnight+)

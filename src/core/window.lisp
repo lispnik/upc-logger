@@ -90,7 +90,7 @@ entry keeps, and inventing the rest would be a lie the file cannot support."
   (let* ((bins (max 1 (ceiling (- end start) bin-seconds)))
          (counts (make-array bins :initial-element 0)))
     (dolist (entry entries counts)
-      (let ((time (entry-scanned-at entry)))
+      (let ((time (entry-at entry)))
         (when (and (<= start time) (< time end))
           (incf (aref counts (floor (- time start) bin-seconds))
                 (entry-count entry)))))))
@@ -147,7 +147,7 @@ that, because \"14:00\" on a chart spanning a month says nothing."
 (defun entries-in-window (log window)
   "The log's entries scanned inside WINDOW, newest first, as the table shows them."
   (remove-if-not (lambda (entry)
-                   (let ((time (entry-scanned-at entry)))
+                   (let ((time (entry-at entry)))
                      (and (<= (time-window-start window) time)
                           (< time (time-window-end window)))))
                  (scan-log-entries log)))
