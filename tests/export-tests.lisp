@@ -24,21 +24,36 @@ lines\"" (csv-field (format nil "two~%lines"))))
          (lines (remove "" (uiop:split-string csv :separator '(#\Newline))
                         :test #'string= :key (lambda (line) (string-trim '(#\Return) line)))))
     (is (= 2 (length lines)))
-    (is (string= "Code,Count,Scanned,Last scanned,Universal time"
+    (is (string= "Code,Name,Count,Scanned,Last scanned,Note,Photo,Universal time"
                  (string-trim '(#\Return) (first lines))))
     ;; CRLF, as RFC 4180 says.
     (is-true (every (lambda (line) (eql #\Return (char line (1- (length line))))) lines))
     ;; The last column is the universal time itself, computed rather than
     ;; copied in: a literal here only tests that two numbers were typed alike.
-    (is (string= (format nil "036000291452,8,2026-09-16 14:03:22,,~d" scanned-at)
+    (is (string= (format nil "036000291452,,8,2026-09-16 14:03:22,,,,~d" scanned-at)
                  (string-trim '(#\Return) (second lines))))))
+
+(test a-name-a-note-and-a-photo-reach-the-csv
+  (let* ((entry (make-entry :code "036000291452" :count 2
+                            :scanned-at (encode-universal-time 0 0 14 16 9 2026 0)
+                            :name "Blue paint, 1L"          ; a comma, so it is quoted
+                            :note "damaged box"
+                            :photo "20260917-140322.jpg"))
+         (row (export-row entry 0)))
+    (is (string= "Blue paint, 1L" (second row)))
+    (is (string= "damaged box" (sixth row)))
+    (is (string= "20260917-140322.jpg" (seventh row)))
+    (is (string= "036000291452,\"Blue paint, 1L\",2,2026-09-16 14:00:00,,damaged box,20260917-140322.jpg,3998556000"
+                 (csv-line row)))))
 
 (test a-bumped-row-carries-the-time-it-was-last-scanned
   (let ((entry (make-entry :code "036000291452" :count 2
                            :scanned-at (encode-universal-time 0 0 14 16 9 2026 0)
                            :updated-at (encode-universal-time 30 5 14 16 9 2026 0))))
-    (is (string= "2026-09-16 14:05:30" (fourth (export-row entry 0))))
-    (is (string= "" (fourth (export-row (make-entry :code "x" :scanned-at 1) 0))))))
+    ;; Fifth, not fourth: Name is the second column, so everything after it
+    ;; moved along one.
+    (is (string= "2026-09-16 14:05:30" (fifth (export-row entry 0))))
+    (is (string= "" (fifth (export-row (make-entry :code "x" :scanned-at 1) 0))))))
 
 (test the-summary-counts-rows-and-items
   (let ((entries (list (make-entry :code "a" :count 8 :scanned-at 1)

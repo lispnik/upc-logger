@@ -5,17 +5,30 @@
 ;;;; subtitle, but a histogram over a date range and a spreadsheet export both
 ;;;; will, and a timestamp not recorded now cannot be recovered later.
 ;;;;
+;;;; An entry may also carry a name, a note and a photo.  The name belongs to
+;;;; the CODE -- naming one row names every row with that code, and a later
+;;;; scan of it inherits the name -- because a name is what the product is
+;;;; called, and typing it again per scan would defeat the point.  A note and a
+;;;; photo describe one scan and stay on their own row.
+;;;;
+;;;; The photo is a file beside the log, not in it: only its name is here, so
+;;;; the log stays a readable s-expression rather than a wall of base64.
+;;;;
 ;;;; The file is a readable s-expression rather than a database: it is small,
 ;;;; it can be looked at, and reading it back is READ.
 
 (in-package #:upc-logger)
 
 (defstruct (entry (:constructor make-entry (&key code (count 1) scanned-at
-                                                 (updated-at scanned-at))))
+                                                 (updated-at scanned-at)
+                                                 name note photo)))
   (code "" :type string)
   (count 1 :type (integer 1))
   (scanned-at 0 :type integer)
-  (updated-at 0 :type integer))
+  (updated-at 0 :type integer)
+  (name nil :type (or null string))
+  (note nil :type (or null string))
+  (photo nil :type (or null string)))
 
 (defun entry-bumped-p (entry)
   "True when ENTRY was scanned again after it was first logged."
@@ -34,21 +47,31 @@ the table shows it in this order, so index I is row I."
 
 (defun total-items (log)
   "The sum of the counts: what was scanned, multiples included."
-  (reduce #'+ (scan-log-entries log) :key #'entry-count))
+  (reduce #'+ (scan-log-entries log) :key #'entry-count :initial-value 0))
+
+(defun code-name (log code)
+  "What CODE has been called, from the newest entry that names it, or NIL."
+  (let ((named (find-if (lambda (entry)
+                          (and (string= code (entry-code entry))
+                               (entry-name entry)))
+                        (scan-log-entries log))))
+    (and named (entry-name named))))
 
 (defun record-scan (log code now)
   "Log a scan of CODE at universal time NOW.
 
 The same code as the newest entry bumps that entry's count, so a run of
 identical items scanned one after another stays one row; anything else is a
-new row on top.  Returns the entry and :BUMPED or :NEW."
+new row on top, carrying whatever this code has been named before.  Returns
+the entry and :BUMPED or :NEW."
   (let ((newest (first (scan-log-entries log))))
     (if (and newest (string= code (entry-code newest)))
         (progn
           (incf (entry-count newest))
           (setf (entry-updated-at newest) now)
           (values newest :bumped))
-        (let ((entry (make-entry :code code :scanned-at now)))
+        (let ((entry (make-entry :code code :scanned-at now
+                                 :name (code-name log code))))
           (push entry (scan-log-entries log))
           (values entry :new)))))
 
@@ -77,21 +100,66 @@ negative, but a paste can put anything in the field."
            (setf (entry-count entry) count)
            (values entry :updated)))))
 
+(defun blank-to-nil (text)
+  "TEXT trimmed, or NIL if nothing is left: an empty field clears a value."
+  (when (stringp text)
+    (let ((trimmed (string-trim '(#\Space #\Tab #\Newline #\Return) text)))
+      (unless (zerop (length trimmed)) trimmed))))
+
+(defun set-name (log index name)
+  "Call row INDEX's code NAME, and every other row with that code too.
+
+Returns the entry and :UPDATED, or NIL and NIL for a row that isn't there.
+Blank clears the name, on all of them."
+  (let ((entry (log-entry log index)))
+    (if (null entry)
+        (values nil nil)
+        (let ((name (blank-to-nil name))
+              (code (entry-code entry)))
+          (dolist (other (scan-log-entries log))
+            (when (string= code (entry-code other))
+              (setf (entry-name other) name)))
+          (values entry :updated)))))
+
+(defun set-note (log index note)
+  "Attach NOTE to row INDEX alone.  Blank clears it."
+  (let ((entry (log-entry log index)))
+    (if (null entry)
+        (values nil nil)
+        (progn (setf (entry-note entry) (blank-to-nil note))
+               (values entry :updated)))))
+
+(defun set-photo (log index photo)
+  "Attach the photo file named PHOTO to row INDEX alone.  NIL clears it."
+  (let ((entry (log-entry log index)))
+    (if (null entry)
+        (values nil nil)
+        (progn (setf (entry-photo entry) (blank-to-nil photo))
+               (values entry :updated)))))
+
 ;;; The file ------------------------------------------------------------------
 
 (defconstant +log-format-version+ 1)
 
 (defun entry-plist (entry)
-  (list :code (entry-code entry)
-        :count (entry-count entry)
-        :scanned-at (entry-scanned-at entry)
-        :updated-at (entry-updated-at entry)))
+  "ENTRY as a plist, leaving out what it does not have: a log of plain scans
+reads the same as it did before names, notes and photos existed."
+  (append (list :code (entry-code entry)
+                :count (entry-count entry)
+                :scanned-at (entry-scanned-at entry)
+                :updated-at (entry-updated-at entry))
+          (when (entry-name entry) (list :name (entry-name entry)))
+          (when (entry-note entry) (list :note (entry-note entry)))
+          (when (entry-photo entry) (list :photo (entry-photo entry)))))
 
 (defun plist-entry (plist)
   (make-entry :code (getf plist :code)
               :count (getf plist :count)
               :scanned-at (getf plist :scanned-at)
-              :updated-at (getf plist :updated-at (getf plist :scanned-at))))
+              :updated-at (getf plist :updated-at (getf plist :scanned-at))
+              :name (getf plist :name)
+              :note (getf plist :note)
+              :photo (getf plist :photo)))
 
 (defun save-log (log path)
   "Write LOG to PATH, by way of a temporary file renamed over it.

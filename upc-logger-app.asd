@@ -22,6 +22,7 @@
                              (:file "store")
                              (:file "scan-table")
                              (:file "chart")
+                             (:file "photo")
                              (:file "list")
                              (:file "share")
                              (:file "camera")
@@ -34,7 +35,11 @@
   :bundle-frameworks ("UIKit" "Foundation" "CoreGraphics" "QuartzCore"
                       "AVFoundation" "AudioToolbox")
   :bundle-info-plist (("NSCameraUsageDescription"
-                       . "UPC Logger reads barcodes with the camera.")
+                       . "UPC Logger reads barcodes with the camera, and takes a photo of a scan when you ask it to.")
+                      ;; Where there is no camera the picker falls back to the
+                      ;; library, and UIImagePickerController needs this to open it.
+                      ("NSPhotoLibraryUsageDescription"
+                       . "UPC Logger can attach a photo from your library to a scan.")
                       ;; The scan log is the app's Documents directory, and
                       ;; these two put it in Files under On My iPhone: the first
                       ;; shows the folder, the second lets what is in it be

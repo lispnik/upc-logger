@@ -48,6 +48,32 @@ prompt -- so a simulator shows every part of the app without a finger."
                      (lambda () (let ((entry (log-entry *log* 1)))
                                   (when entry (apply-count entry "8"))))
                      (lambda () (note "demo: scripted scans done")))))
+    (when (ext:getenv "UPC_LOGGER_DEMO_ROW")
+      ;; A name, a note and a photo on the top row, so the three of them can be
+      ;; seen on a simulator: no camera, and a library with nothing in it.
+      (setf steps (append steps
+                          (list (lambda ()
+                                  (let ((entry (log-entry *log* 0)))
+                                    (when entry
+                                      (change-entry entry
+                                                    (lambda (index)
+                                                      (set-name *log* index "Blue paint 1L")
+                                                      (set-note *log* index "damaged box"))))))
+                                (lambda ()
+                                  (let ((entry (log-entry *log* 0)))
+                                    (when entry
+                                      (handler-case
+                                          (let ((name (write-photo (synthetic-photo))))
+                                            (if name
+                                                (change-entry entry
+                                                              (lambda (index)
+                                                                (set-photo *log* index name)))
+                                                (note "demo: no photo written")))
+                                        (serious-condition (condition)
+                                          (note "demo photo: ~a" condition))))))
+                                (lambda ()
+                                  (let ((entry (log-entry *log* 0)))
+                                    (when entry (row-menu entry))))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_PROMPT")
       (setf steps (append steps (list (lambda () (edit-count (log-entry *log* 0)))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_SHARE")

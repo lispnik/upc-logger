@@ -2,8 +2,9 @@
 ;;;;
 ;;;; One Objective-C class serves every table of entries in the app: it is
 ;;;; given a function returning the rows, and optionally what to do when one is
-;;;; tapped or swiped away.  A second table -- a session, a single code's
-;;;; history -- is then a call rather than another data source.
+;;;; tapped, swiped away, or has its detail button pressed.  A second table --
+;;;; a session, a single code's history -- is then a call rather than another
+;;;; data source.
 ;;;;
 ;;;; The rows are cached rather than asked for per cell.  UIKit asks for the
 ;;;; count once and then for each cell, and a source that recomputed in between
@@ -21,6 +22,7 @@
    (cache :initform '() :accessor source-cache)
    (select :initarg :select :initform nil :reader source-select)
    (remove-row :initarg :remove :initform nil :reader source-remove)
+   (info :initarg :info :initform nil :reader source-info)
    (changed :initarg :changed :initform nil :reader source-changed))
   (:objc-class-name "UPCScanTableSource"))
 
@@ -33,17 +35,30 @@
   (handler-case (length (source-cache self))
     (serious-condition () 0)))
 
+(defun scan-subtitle (entry)
+  "The name, the note and when it was scanned, in that order of interest."
+  (let ((scanned (if (entry-bumped-p entry)
+                     (format nil "~a, last ~a"
+                             (format-timestamp (entry-scanned-at entry))
+                             (subseq (format-timestamp (entry-updated-at entry)) 11))
+                     (format-timestamp (entry-scanned-at entry)))))
+    (format nil "~@[~a~%~]~@[~a. ~]~a" (entry-name entry) (entry-note entry) scanned)))
+
 (defun configure-cell (cell entry)
   (objc:invoke (objc:invoke cell "textLabel") "setText:"
                (format-entry-title (entry-count entry) (entry-code entry)))
-  (objc:invoke (objc:invoke cell "detailTextLabel") "setText:" (scan-subtitle entry)))
-
-(defun scan-subtitle (entry)
-  (let ((scanned (format-timestamp (entry-scanned-at entry))))
-    (if (entry-bumped-p entry)
-        (format nil "~a, last ~a" scanned
-                (subseq (format-timestamp (entry-updated-at entry)) 11))
-        scanned)))
+  (objc:invoke (objc:invoke cell "detailTextLabel") "setText:" (scan-subtitle entry))
+  ;; The thumbnail has to be cleared as well as set: cells are reused, and a
+  ;; row with no photo would otherwise show the last one's.
+  (let ((view (objc:invoke cell "imageView"))
+        (photo (entry-photo entry)))
+    (if (photo-exists-p photo)
+        (objc:invoke view "setImage:"
+                     (objc:invoke "UIImage" "imageWithContentsOfFile:" (photo-file-path photo)))
+        (objc:invoke view "setImage:" nil))
+    (objc:invoke view "setClipsToBounds:" t)
+    (objc:invoke view "setContentMode:" 2)              ; scale aspect fill
+    (objc:invoke (objc:invoke view "layer") "setCornerRadius:" 6d0)))
 
 (objc:define-objc-method ("tableView:cellForRowAtIndexPath:" objc:objc-object-pointer)
     ((self scan-table-source) (table objc:objc-object-pointer) (path objc:objc-object-pointer))
@@ -55,9 +70,16 @@
                                                "initWithStyle:reuseIdentifier:" 3 "scan") ; subtitle
                                   "autorelease"))
           (objc:invoke (objc:invoke cell "textLabel") "setFont:" (ui:mono-font 19 0.3))
-          (objc:invoke (objc:invoke cell "detailTextLabel") "setFont:" (ui:font 12))
-          (objc:invoke (objc:invoke cell "detailTextLabel") "setTextColor:"
-                       (ui:system-color "secondaryLabel")))
+          (let ((detail (objc:invoke cell "detailTextLabel")))
+            (objc:invoke detail "setFont:" (ui:font 12))
+            (objc:invoke detail "setNumberOfLines:" 2)
+            (objc:invoke detail "setTextColor:" (ui:system-color "secondaryLabel")))
+          ;; The detail button is where naming, notes and photos live; tapping
+          ;; the row itself stays the fast path, which is the count.
+          ;; 4 is the detail button. 3 is a checkmark, which is not a button at
+          ;; all: the row showed a tick and the menu could not be reached.
+          (when (source-info self)
+            (objc:invoke cell "setAccessoryType:" 4)))
         (when entry
           (configure-cell cell entry))
         cell)
@@ -78,6 +100,17 @@
           (funcall select entry)))
     (serious-condition (condition)
       (note "select: ~a" condition))))
+
+(objc:define-objc-method ("tableView:accessoryButtonTappedForRowWithIndexPath:" :void)
+    ((self scan-table-source) (table objc:objc-object-pointer) (path objc:objc-object-pointer))
+  (declare (ignore table))
+  (handler-case
+      (let ((entry (source-entry self (objc:invoke path "row")))
+            (info (source-info self)))
+        (when (and entry info)
+          (funcall info entry)))
+    (serious-condition (condition)
+      (note "detail: ~a" condition))))
 
 (objc:define-objc-method ("tableView:canEditRowAtIndexPath:" objc:objc-bool)
     ((self scan-table-source) (table objc:objc-object-pointer) (path objc:objc-object-pointer))
@@ -104,22 +137,24 @@
 
 ;;; The component ---------------------------------------------------------------
 
-(defun make-scan-table (&key rows select remove changed)
+(defun make-scan-table (&key rows select remove info changed)
   "A table view showing whatever ROWS returns, a list of entries.
 
-SELECT is called with the entry that was tapped.  REMOVE, if given, turns on
-swipe to delete and is called with the entry; returning true lets the row go.
-CHANGED is called after the table has changed itself, for whatever is showing
-totals elsewhere."
+SELECT is called with the entry that was tapped.  INFO, if given, puts a
+detail button on every row and is called with that row's entry.  REMOVE turns
+on swipe to delete and is called with the entry; returning true lets the row
+go.  CHANGED is called after the table has changed itself, for whatever is
+showing totals elsewhere."
   (let* ((view (objc:invoke (objc:invoke (objc:invoke "UITableView" "alloc")
                                          "initWithFrame:style:" (vector 0d0 0d0 0d0 0d0) 0)
                             "autorelease"))
          ;; A table view holds its source and delegate weakly.
          (source (ui:keep (make-instance 'scan-table-source
-                                         :rows rows :select select
-                                         :remove remove :changed changed)))
+                                         :rows rows :select select :remove remove
+                                         :info info :changed changed)))
          (table (%make-scan-table view source)))
     (objc:invoke view "setTranslatesAutoresizingMaskIntoConstraints:" nil)
+    (objc:invoke view "setRowHeight:" 62d0)
     (let ((pointer (objc:objc-object-pointer source)))
       (objc:invoke view "setDataSource:" pointer)
       (objc:invoke view "setDelegate:" pointer))

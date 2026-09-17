@@ -66,6 +66,58 @@
     (is (equal '("333333333331" "111111111117") (codes log)))
     (is (null (delete-entry log 7)))))
 
+(test naming-a-row-names-the-code-everywhere
+  ;; A name is what the product is called, so it belongs to the code: naming
+  ;; one row names the others, and typing it again per scan would be the point
+  ;; missed.
+  (let ((log (make-scan-log)))
+    (record-scan log "111111111117" 100)
+    (record-scan log "222222222224" 200)
+    (record-scan log "111111111117" 300)
+    (is (eq :updated (nth-value 1 (set-name log 0 "Blue paint 1L"))))
+    (is (string= "Blue paint 1L" (entry-name (log-entry log 0))))
+    (is (string= "Blue paint 1L" (entry-name (log-entry log 2))))
+    (is (null (entry-name (log-entry log 1))))               ; a different code
+    (is (string= "Blue paint 1L" (code-name log "111111111117")))))
+
+(test a-later-scan-inherits-the-name
+  (let ((log (make-scan-log)))
+    (record-scan log "111111111117" 100)
+    (set-name log 0 "Blue paint 1L")
+    (record-scan log "222222222224" 200)                     ; so the next is new
+    (record-scan log "111111111117" 300)
+    (is (string= "Blue paint 1L" (entry-name (log-entry log 0))))))
+
+(test a-blank-name-clears-it
+  (let ((log (make-scan-log)))
+    (record-scan log "111111111117" 100)
+    (set-name log 0 "Blue paint")
+    (set-name log 0 "   ")
+    (is (null (entry-name (log-entry log 0))))
+    (is (null (code-name log "111111111117")))))
+
+(test notes-and-photos-stay-on-their-own-row
+  ;; They describe one scan -- a damaged box, a picture of that shelf -- and
+  ;; must not spread to every row sharing the code.
+  (let ((log (make-scan-log)))
+    (record-scan log "111111111117" 100)
+    (record-scan log "222222222224" 200)
+    (record-scan log "111111111117" 300)
+    (set-note log 0 "damaged box")
+    (set-photo log 0 "20260917-140322.jpg")
+    (is (string= "damaged box" (entry-note (log-entry log 0))))
+    (is (string= "20260917-140322.jpg" (entry-photo (log-entry log 0))))
+    (is (null (entry-note (log-entry log 2))))
+    (is (null (entry-photo (log-entry log 2))))
+    (set-note log 0 "")
+    (is (null (entry-note (log-entry log 0))))))
+
+(test setting-anything-on-a-row-that-is-not-there
+  (let ((log (make-scan-log)))
+    (is (null (nth-value 1 (set-name log 3 "x"))))
+    (is (null (nth-value 1 (set-note log 3 "x"))))
+    (is (null (nth-value 1 (set-photo log 3 "x.jpg"))))))
+
 (defun scratch-file (name)
   (merge-pathnames (format nil "upc-logger-test-~a-~d.sexp" name (random 1000000))
                    (uiop:temporary-directory)))

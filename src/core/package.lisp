@@ -11,9 +11,11 @@
    ;; entries and the log
    #:entry #:make-entry #:entry-p #:entry-code #:entry-count
    #:entry-scanned-at #:entry-updated-at #:entry-bumped-p
+   #:entry-name #:entry-note #:entry-photo
    #:scan-log #:make-scan-log #:scan-log-entries
-   #:log-length #:log-entry #:total-items
+   #:log-length #:log-entry #:total-items #:code-name
    #:record-scan #:set-count #:delete-entry
+   #:set-name #:set-note #:set-photo #:blank-to-nil
    #:save-log #:load-log #:+log-format-version+
    ;; debouncing the camera
    #:scan-gate #:make-scan-gate #:admit-scan

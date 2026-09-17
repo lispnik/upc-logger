@@ -3,11 +3,15 @@
 ;;;; CSV is written here in full.  A PDF cannot be, since drawing it is UIKit's
 ;;;; job, but the rows it prints come from the same function, so the two
 ;;;; exports can never disagree about what was in the view.
+;;;;
+;;;; The photo travels as its file name rather than its bytes: a CSV cell full
+;;;; of base64 is no use to a spreadsheet, and the name is enough to find the
+;;;; file beside the log.
 
 (in-package #:upc-logger)
 
 (defparameter +export-columns+
-  '("Code" "Count" "Scanned" "Last scanned" "Universal time"))
+  '("Code" "Name" "Count" "Scanned" "Last scanned" "Note" "Photo" "Universal time"))
 
 (defun timestamp-for-export (universal-time &optional time-zone)
   "\"2026-09-16 14:03:22\": ISO order, a space instead of the T, and local
@@ -17,11 +21,14 @@ time, which is what a spreadsheet parses as a date without being asked."
 (defun export-row (entry &optional time-zone)
   "ENTRY as the strings both exports print."
   (list (entry-code entry)
+        (or (entry-name entry) "")
         (princ-to-string (entry-count entry))
         (timestamp-for-export (entry-scanned-at entry) time-zone)
         (if (entry-bumped-p entry)
             (timestamp-for-export (entry-updated-at entry) time-zone)
             "")
+        (or (entry-note entry) "")
+        (or (entry-photo entry) "")
         (princ-to-string (entry-scanned-at entry))))
 
 (defun export-rows (entries &optional time-zone)
