@@ -35,6 +35,13 @@
                       "AVFoundation" "AudioToolbox")
   :bundle-info-plist (("NSCameraUsageDescription"
                        . "UPC Logger reads barcodes with the camera.")
+                      ;; The scan log is the app's Documents directory, and
+                      ;; these two put it in Files under On My iPhone: the first
+                      ;; shows the folder, the second lets what is in it be
+                      ;; opened in place rather than copied out and edited in a
+                      ;; copy nothing reads back.
+                      ("UIFileSharingEnabled" . :true)
+                      ("LSSupportsOpeningDocumentsInPlace" . :true)
                       ;; The top of the screen is the camera, so the status
                       ;; bar is light whatever the appearance.
                       ("UIViewControllerBasedStatusBarAppearance" . :false)
