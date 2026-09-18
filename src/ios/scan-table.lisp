@@ -66,10 +66,8 @@ landed, because cells are reused and a recognizer cannot hold a row number."
   (objc:invoke (objc:invoke cell "detailTextLabel") "setText:" (group-subtitle group))
   ;; The thumbnail has to be cleared as well as set: cells are reused, and a
   ;; row with no photo would otherwise show the last one's.
-  ;; Its own picture if it has one, otherwise the set's -- which every scan of
-  ;; a photographed run carries, so each row shows it when rows are per scan.
   (let ((view (objc:invoke cell "imageView"))
-        (photo (group-display-photo group)))
+        (photo (group-photo group)))
     (if (photo-exists-p photo)
         (objc:invoke view "setImage:"
                      (objc:invoke "UIImage" "imageWithContentsOfFile:" (photo-file-path photo)))

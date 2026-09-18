@@ -16,7 +16,7 @@
 
 (defparameter +export-columns+
   '("Code" "Name" "Count" "Scans" "First scanned" "Last scanned"
-    "Note" "Photo" "Set photo" "Universal time"))
+    "Note" "Photo" "Universal time"))
 
 (defun timestamp-for-export (universal-time &optional time-zone)
   "\"2026-09-16 14:03:22\": ISO order, a space instead of the T, and local
@@ -37,7 +37,6 @@ time, which is what a spreadsheet parses as a date without being asked."
           (if (= earliest latest) "" (timestamp-for-export latest time-zone))
           (or (group-note group) "")
           (or (group-photo group) "")
-          (or (group-shared-photo group) "")
           (princ-to-string earliest))))
 
 (defun export-rows (groups &optional time-zone)

@@ -27,8 +27,12 @@
 inside the window, and matching this -- so the table, the bars and an export
 can never disagree about what \"showing\" means.")
 
-(defvar *aggregated* t
-  "True while a run of scans of one code is drawn as a single row.")
+(defvar *aggregated* nil
+  "True while a run of scans of one code is drawn as a single row.
+
+Off to begin with: a row per scan is the log as it was actually recorded, and
+grouping is the interpretation laid over it.  The strip above the search bar
+turns it on.")
 
 (defun visible-entries ()
   "The scans on screen, one event each.  The bars are drawn from these however

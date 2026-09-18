@@ -6,9 +6,8 @@
   :description "Runs of scans drawn as one row, or every scan on its own.")
 (in-suite aggregating)
 
-(defun event (code at &key (count 1) note photo name shared-photo)
-  (make-entry :code code :at at :count count :note note :photo photo :name name
-              :shared-photo shared-photo))
+(defun event (code at &key (count 1) note photo name)
+  (make-entry :code code :at at :count count :note note :photo photo :name name))
 
 (defun run-of (codes)
   "Events newest first, one per code, a second apart."
@@ -100,62 +99,3 @@
 (test nothing-to-group
   (is (null (group-entries '() t)))
   (is (null (group-entries '() nil))))
-
-;;; A photo of the whole run ------------------------------------------------------
-
-(test a-set-photo-does-not-split-the-run
-  ;; The point of one picture of twelve tins is that it covers the twelve.
-  (let* ((events (list (event "a" 300 :shared-photo "set.jpg")
-                       (event "a" 200 :shared-photo "set.jpg")
-                       (event "a" 100 :shared-photo "set.jpg")))
-         (groups (group-entries events t)))
-    (is (= 1 (length groups)))
-    (is (= 3 (group-scans (first groups))))
-    (is (string= "set.jpg" (group-shared-photo (first groups))))))
-
-(test two-sets-of-the-same-code-do-not-merge
-  ;; Photographed separately, they are two sets; merging would say one picture
-  ;; covered scans it never saw.
-  (let ((groups (group-entries (list (event "a" 400 :shared-photo "second.jpg")
-                                     (event "a" 300 :shared-photo "second.jpg")
-                                     (event "a" 200 :shared-photo "first.jpg")
-                                     (event "a" 100 :shared-photo "first.jpg"))
-                               t)))
-    (is (= 2 (length groups)))
-    (is (equal '("second.jpg" "first.jpg") (mapcar #'group-shared-photo groups)))
-    (is (equal '(2 2) (mapcar #'group-scans groups)))))
-
-(test a-photographed-run-and-an-unphotographed-one-are-separate
-  (let ((groups (group-entries (list (event "a" 200 :shared-photo "set.jpg")
-                                     (event "a" 100))
-                               t)))
-    (is (= 2 (length groups)))))
-
-(test every-row-of-the-set-carries-its-photo
-  ;; Ungrouped, each scan is its own row, and each must show the set's picture:
-  ;; that is what "it appears with every row it belongs to" means.
-  (let* ((events (list (event "a" 300 :shared-photo "set.jpg")
-                       (event "a" 200 :shared-photo "set.jpg")
-                       (event "a" 100 :shared-photo "set.jpg")))
-         (rows (group-entries events nil)))
-    (is (= 3 (length rows)))
-    (is-true (every (lambda (row) (string= "set.jpg" (group-display-photo row))) rows))))
-
-(test a-scans-own-photo-wins-over-the-sets
-  (let ((row (first (group-entries (list (event "a" 100 :photo "mine.jpg"
-                                                :shared-photo "set.jpg"))
-                                   t))))
-    (is (string= "mine.jpg" (group-display-photo row)))
-    (is (string= "set.jpg" (group-shared-photo row)))))
-
-(test a-row-with-neither-photo-shows-none
-  (is (null (group-display-photo (first (group-entries (list (event "a" 100)) t))))))
-
-(test a-scan-with-its-own-photo-still-leaves-the-run
-  ;; Its own picture annotates it; the set's does not.
-  (let ((groups (group-entries (list (event "a" 300 :shared-photo "set.jpg")
-                                     (event "a" 200 :shared-photo "set.jpg" :photo "mine.jpg")
-                                     (event "a" 100 :shared-photo "set.jpg"))
-                               t)))
-    (is (= 3 (length groups)))
-    (is (string= "mine.jpg" (group-photo (second groups))))))
