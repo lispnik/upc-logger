@@ -23,6 +23,7 @@
                              (:file "scan-table")
                              (:file "chart")
                              (:file "photo")
+                             (:file "viewer")
                              (:file "list")
                              (:file "search")
                              (:file "share")

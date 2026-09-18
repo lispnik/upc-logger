@@ -170,7 +170,30 @@ shows the same name."
                   (change-group group (lambda (index) (set-photo *log* index name)))))))
 
 (defun clear-photo (group)
-  (change-group group (lambda (index) (set-photo *log* index nil))))
+  (let ((old (group-photo group)))
+    (change-group group (lambda (index) (set-photo *log* index nil)))
+    (delete-photo-file old)))
+
+(defun photo-tapped (group)
+  "The picture on a row, full screen, with the two things worth doing to it."
+  (let ((old (group-photo group)))
+    (when (photo-exists-p old)
+      (show-photo (photo-file-path old)
+                  :on-replace
+                  (lambda (presenter)
+                    ;; Presented from the viewer: the root controller has the
+                    ;; viewer over it and cannot present anything itself.
+                    (pick-photo (lambda (name)
+                                  (when name
+                                    (change-group group
+                                                  (lambda (index) (set-photo *log* index name)))
+                                    (delete-photo-file old)
+                                    (viewer-show-file (photo-file-path name))))
+                                presenter))
+                  :on-delete
+                  (lambda ()
+                    (change-group group (lambda (index) (set-photo *log* index nil)))
+                    (delete-photo-file old))))))
 
 ;;; The row menu --------------------------------------------------------------------
 
@@ -244,6 +267,7 @@ shows the same name."
   (setf *table* (make-scan-table :rows #'visible-groups
                                  :select #'edit-count
                                  :info #'row-menu
+                                 :image-tap #'photo-tapped
                                  :remove #'remove-group
                                  :changed (lambda ()
                                             (update-summary)

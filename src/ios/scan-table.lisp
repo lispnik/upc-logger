@@ -22,8 +22,24 @@
    (select :initarg :select :initform nil :reader source-select)
    (remove-row :initarg :remove :initform nil :reader source-remove)
    (info :initarg :info :initform nil :reader source-info)
+   (image-tap :initarg :image-tap :initform nil :reader source-image-tap)
+   (view :initform nil :accessor source-view)
    (changed :initarg :changed :initform nil :reader source-changed))
   (:objc-class-name "UPCScanTableSource"))
+
+(defun thumbnail-tapped (source recognizer)
+  "Which row's picture was tapped.  Asked of the table by where the touch
+landed, because cells are reused and a recognizer cannot hold a row number."
+  (handler-case
+      (let* ((table (source-view source))
+             (point (objc:invoke recognizer "locationInView:" table))
+             (path (objc:invoke table "indexPathForRowAtPoint:" point)))
+        (unless (cffi:null-pointer-p path)
+          (let ((group (source-group source (objc:invoke path "row"))))
+            (when (and group (source-image-tap source))
+              (funcall (source-image-tap source) group)))))
+    (serious-condition (condition)
+      (note "thumbnail: ~a" condition))))
 
 (defun source-group (source row)
   (nth row (source-cache source)))
@@ -77,7 +93,19 @@
           ;; 4 is the detail button. 3 is a checkmark, which is not a button at
           ;; all: the row showed a tick and the menu could not be reached.
           (when (source-info self)
-            (objc:invoke cell "setAccessoryType:" 4)))
+            (objc:invoke cell "setAccessoryType:" 4))
+          ;; The picture opens itself; the rest of the row still sets the count.
+          (when (source-image-tap self)
+            (let ((thumbnail (objc:invoke cell "imageView"))
+                  (source self))
+              (objc:invoke thumbnail "setUserInteractionEnabled:" t)
+              (objc:invoke thumbnail "addGestureRecognizer:"
+                           (ui:keep (objc:invoke (objc:invoke "UITapGestureRecognizer" "alloc")
+                                                 "initWithTarget:action:"
+                                                 (ui:action-target
+                                                  (lambda (recognizer)
+                                                    (thumbnail-tapped source recognizer)))
+                                                 "fire:"))))))
         (when group
           (configure-cell cell group))
         cell)
@@ -135,7 +163,7 @@
 
 ;;; The component ---------------------------------------------------------------
 
-(defun make-scan-table (&key rows select remove info changed)
+(defun make-scan-table (&key rows select remove info image-tap changed)
   "A table view showing whatever ROWS returns, a list of groups.
 
 SELECT is called with the group that was tapped.  INFO, if given, puts a
@@ -149,8 +177,10 @@ showing totals elsewhere."
          ;; A table view holds its source and delegate weakly.
          (source (ui:keep (make-instance 'scan-table-source
                                          :rows rows :select select :remove remove
-                                         :info info :changed changed)))
+                                         :info info :image-tap image-tap
+                                         :changed changed)))
          (table (%make-scan-table view source)))
+    (setf (source-view source) view)
     (objc:invoke view "setTranslatesAutoresizingMaskIntoConstraints:" nil)
     (objc:invoke view "setRowHeight:" 62d0)
     (let ((pointer (objc:objc-object-pointer source)))

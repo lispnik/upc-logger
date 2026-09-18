@@ -77,6 +77,24 @@ prompt -- so a simulator shows every part of the app without a finger."
                                 (lambda ()
                                   (let ((group (first (visible-groups))))
                                     (when group (row-menu group))))))))
+    (when (ext:getenv "UPC_LOGGER_DEMO_VIEWER")
+      ;; The photo full screen: a thumbnail cannot be tapped on a simulator.
+      (setf steps (append steps
+                          (list (lambda ()
+                                  (let ((group (first (visible-groups))))
+                                    (when group
+                                      (handler-case
+                                          (let ((name (write-photo (synthetic-photo))))
+                                            (when name
+                                              (change-group group
+                                                            (lambda (index)
+                                                              (set-photo *log* index name)))))
+                                        (serious-condition (condition)
+                                          (note "demo photo: ~a" condition))))))
+                                (lambda ()
+                                  (let ((group (first (visible-groups))))
+                                    (note "demo: opening the photo full screen")
+                                    (when group (photo-tapped group))))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_GROUPS")
       ;; Both views, and the rule that an annotated scan leaves its run: the
       ;; scope strip cannot be tapped on a simulator.

@@ -78,8 +78,20 @@ method, and its quality is a CGFloat -- a double on arm64."
     (serious-condition (condition)
       (note "cancel: ~a" condition))))
 
-(defun pick-photo (completion)
-  "Take or choose a photo, then call COMPLETION with its file name, or NIL."
+(defun delete-photo-file (name)
+  "Remove the JPEG called NAME, if it is there.  A photo replaced or deleted
+leaves no file behind: the pictures would otherwise pile up unreferenced."
+  (when name
+    (let ((path (photo-file-path name)))
+      (when (probe-file path)
+        (handler-case (progn (delete-file path) (note "removed ~a" name))
+          (error (condition) (note "could not remove ~a: ~a" name condition)))))))
+
+(defun pick-photo (completion &optional presenter)
+  "Take or choose a photo, then call COMPLETION with its file name, or NIL.
+
+PRESENTER is what puts the picker on screen; the root controller cannot, while
+something else is presented over it."
   (handler-case
       (let ((camera (objc:invoke-bool "UIImagePickerController" "isSourceTypeAvailable:" 1))
             (picker (objc:alloc-init-object "UIImagePickerController")))
@@ -89,8 +101,8 @@ method, and its quality is a CGFloat -- a double on arm64."
         ;; 1 is the camera, 0 the library: the simulator has only the second.
         (objc:invoke picker "setSourceType:" (if camera 1 0))
         (objc:invoke picker "setDelegate:" (objc:objc-object-pointer *picker-delegate*))
-        (objc:invoke (ui:root-controller) "presentViewController:animated:completion:"
-                     picker t nil))
+        (objc:invoke (or presenter (ui:root-controller))
+                     "presentViewController:animated:completion:" picker t nil))
     (serious-condition (condition)
       (note "picker: ~a" condition)
       (finish-photo nil))))
