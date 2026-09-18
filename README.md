@@ -1,5 +1,7 @@
 # UPC Logger
 
+## Introduction
+
 <img src="res/Icon.xcassets/AppIcon.appiconset/icon-1024.png" width="128" align="right" alt="App icon: barcode bars with a wooden log lying over them.">
 
 An iPhone app, written in Common Lisp, for counting things by their barcodes.
@@ -11,6 +13,10 @@ An iPhone app, written in Common Lisp, for counting things by their barcodes.
 - **Setting a count:** tap a row and type how many there are on the number pad. Scan one of a case of eight, tap it, type `8`, and the row reads `8 x 012345678905`. `0` removes the row, and so does swiping left.
 - **Naming, notes and photos:** the ⓘ button on a row opens the rest. A **name** belongs to the code, so naming `845121047035` "Blue paint 1L" names every row with that code and every later scan of it — a bare number tells you nothing a week later. A **note** and a **photo** describe the one scan: "damaged box", a picture of the shelf. Photos are JPEGs in `Documents/photos/`, and the log keeps only the file name, so it stays readable.
 - **Saving:** the log is written after every change to `Documents/scans.sexp`, a readable s-expression with universal-time timestamps.
+
+## Screenshot
+
+<img src="screenshot.png" width="400" alt="Screenshot of the device running the app">
 
 ## The chart
 
