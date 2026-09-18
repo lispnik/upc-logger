@@ -77,6 +77,34 @@ prompt -- so a simulator shows every part of the app without a finger."
                                 (lambda ()
                                   (let ((group (first (visible-groups))))
                                     (when group (row-menu group))))))))
+    (when (ext:getenv "UPC_LOGGER_DEMO_SET")
+      ;; A photo of the whole run: the ⓘ cannot be tapped on a simulator.
+      (setf steps (append steps
+                          (list (lambda ()
+                                  ;; The run is the last group -- the three
+                                  ;; scans of one code the demo made first.
+                                  (let ((run (find-if #'group-merged-p (visible-groups))))
+                                    (if (null run)
+                                        (note "demo: no run to photograph")
+                                        (handler-case
+                                            (let ((name (write-photo (synthetic-photo))))
+                                              (when name
+                                                (change-set run
+                                                            (lambda (events)
+                                                              (attach-shared-photo events name)))
+                                                (note "demo: set photo on ~d scans; ~d rows still"
+                                                      (group-scans run)
+                                                      (length (visible-groups)))))
+                                          (serious-condition (condition)
+                                            (note "demo set photo: ~a" condition))))))
+                                (lambda ()
+                                  (setf *aggregated* nil)
+                                  (when *search-bar*
+                                    (objc:invoke *search-bar* "setSelectedScopeButtonIndex:" 1))
+                                  (notify-window-change)
+                                  (note "demo: every scan, ~d rows, ~d showing the set photo"
+                                        (length (visible-groups))
+                                        (count-if #'group-shared-photo (visible-groups))))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_VIEWER")
       ;; The photo full screen: a thumbnail cannot be tapped on a simulator.
       (setf steps (append steps

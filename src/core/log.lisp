@@ -20,6 +20,7 @@
 (in-package #:upc-logger)
 
 (defstruct (entry (:constructor make-entry (&key code (count 1) at name note photo
+                                                 shared-photo
                                                  ;; Accepted so a v1 plist reads
                                                  ;; without special-casing.
                                                  scanned-at)))
@@ -28,14 +29,29 @@
   (at (or scanned-at 0) :type integer)
   (name nil :type (or null string))
   (note nil :type (or null string))
-  (photo nil :type (or null string)))
+  (photo nil :type (or null string))
+  ;; A picture of the whole run this scan belongs to -- twelve tins
+  ;; photographed as a set.  Held on every event of the run, which is what
+  ;; makes it show on each row when the rows are one per scan.
+  (shared-photo nil :type (or null string)))
 
 (defun annotated-p (entry)
-  "True when ENTRY carries something of its own: a note or a photo.
+  "True when ENTRY carries something of its own: a note or a photo of itself.
 
 Such an event never merges with its neighbours, because what it carries
-belongs to that scan and would be hidden inside a run."
+belongs to that scan and would be hidden inside a run.  A SHARED-PHOTO is
+deliberately not counted: it belongs to the run, and splitting the run over it
+would defeat the point of taking one picture of the set."
   (and (or (entry-note entry) (entry-photo entry)) t))
+
+(defun attach-shared-photo (entries photo)
+  "Give every event in ENTRIES the same set photo.  Blank clears it.
+
+Takes the events rather than an index because a run is worked out for display;
+the log itself keeps no such thing."
+  (let ((photo (blank-to-nil photo)))
+    (dolist (entry entries photo)
+      (setf (entry-shared-photo entry) photo))))
 
 (defstruct (scan-log (:constructor make-scan-log (&optional entries)))
   "The log.  ENTRIES is a list of events, newest first."
@@ -136,7 +152,9 @@ last time, and is still read.")
                 :at (entry-at entry))
           (when (entry-name entry) (list :name (entry-name entry)))
           (when (entry-note entry) (list :note (entry-note entry)))
-          (when (entry-photo entry) (list :photo (entry-photo entry)))))
+          (when (entry-photo entry) (list :photo (entry-photo entry)))
+          (when (entry-shared-photo entry)
+            (list :shared-photo (entry-shared-photo entry)))))
 
 (defun plist-entry (plist)
   "An event from PLIST, in either format.
@@ -150,7 +168,8 @@ file cannot support."
               :at (or (getf plist :at) (getf plist :scanned-at) 0)
               :name (getf plist :name)
               :note (getf plist :note)
-              :photo (getf plist :photo)))
+              :photo (getf plist :photo)
+              :shared-photo (getf plist :shared-photo)))
 
 (defun save-log (log path)
   "Write LOG to PATH, by way of a temporary file renamed over it."

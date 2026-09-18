@@ -174,9 +174,37 @@ shows the same name."
     (change-group group (lambda (index) (set-photo *log* index nil)))
     (delete-photo-file old)))
 
+;;; A photo of the whole run ---------------------------------------------------
+
+(defun change-set (group function)
+  "Apply FUNCTION to GROUP's events, then save and show the result."
+  (funcall function (group-events group))
+  (save)
+  (refresh-list)
+  (redraw-chart))
+
+(defun attach-set-photo (group)
+  "One picture for the whole run: photographed as a set, shown on every scan
+of it."
+  (pick-photo (lambda (name)
+                (when name
+                  (let ((old (group-shared-photo group)))
+                    (change-set group (lambda (events) (attach-shared-photo events name)))
+                    (delete-photo-file old))))))
+
+(defun clear-set-photo (group)
+  (let ((old (group-shared-photo group)))
+    (change-set group (lambda (events) (attach-shared-photo events nil)))
+    (delete-photo-file old)))
+
 (defun photo-tapped (group)
-  "The picture on a row, full screen, with the two things worth doing to it."
-  (let ((old (group-photo group)))
+  "The picture on a row, full screen, with the two things worth doing to it.
+
+Whichever picture the row is showing: its own, or the set's -- and replacing
+or deleting acts on that one, not on the other."
+  (let* ((own (group-photo group))
+         (old (group-display-photo group))
+         (set-photo-p (and old (not own))))
     (when (photo-exists-p old)
       (show-photo (photo-file-path old)
                   :on-replace
@@ -185,14 +213,21 @@ shows the same name."
                     ;; viewer over it and cannot present anything itself.
                     (pick-photo (lambda (name)
                                   (when name
-                                    (change-group group
-                                                  (lambda (index) (set-photo *log* index name)))
+                                    (if set-photo-p
+                                        (change-set group
+                                                    (lambda (events)
+                                                      (attach-shared-photo events name)))
+                                        (change-group group
+                                                      (lambda (index)
+                                                        (set-photo *log* index name))))
                                     (delete-photo-file old)
                                     (viewer-show-file (photo-file-path name))))
                                 presenter))
                   :on-delete
                   (lambda ()
-                    (change-group group (lambda (index) (set-photo *log* index nil)))
+                    (if set-photo-p
+                        (change-set group (lambda (events) (attach-shared-photo events nil)))
+                        (change-group group (lambda (index) (set-photo *log* index nil))))
                     (delete-photo-file old))))))
 
 ;;; The row menu --------------------------------------------------------------------
@@ -241,6 +276,15 @@ shows the same name."
                  (lambda () (attach-photo group)))
     (when (group-photo group)
       (menu-action sheet "Remove photo" (lambda () (clear-photo group)) 2)) ; destructive
+    ;; A picture of the run itself, offered where there is a run to picture.
+    (when (or (group-merged-p group) (group-shared-photo group))
+      (menu-action sheet (if (photo-exists-p (group-shared-photo group))
+                             "Replace the photo of this set"
+                             (format nil "Photograph all ~d as a set" (group-scans group)))
+                   (lambda () (attach-set-photo group)))
+      (when (group-shared-photo group)
+        (menu-action sheet "Remove the set photo"
+                     (lambda () (clear-set-photo group)) 2)))
     (menu-action sheet "Cancel" (lambda () nil) 1)
     (anchor-sheet sheet)
     (objc:invoke (ui:root-controller) "presentViewController:animated:completion:" sheet t nil)))

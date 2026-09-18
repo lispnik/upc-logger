@@ -27,14 +27,22 @@ lines\"" (csv-field (format nil "two~%lines"))))
          (lines (remove "" (uiop:split-string csv :separator '(#\Newline))
                         :test #'string= :key (lambda (line) (string-trim '(#\Return) line)))))
     (is (= 2 (length lines)))
-    (is (string= "Code,Name,Count,Scans,First scanned,Last scanned,Note,Photo,Universal time"
+    (is (string= "Code,Name,Count,Scans,First scanned,Last scanned,Note,Photo,Set photo,Universal time"
                  (string-trim '(#\Return) (first lines))))
     ;; CRLF, as RFC 4180 says.
     (is-true (every (lambda (line) (eql #\Return (char line (1- (length line))))) lines))
     ;; The universal time is computed, not copied in: a literal would only
     ;; test that two numbers were typed alike.
-    (is (string= (format nil "036000291452,,8,1,2026-09-16 14:03:22,,,,~d" at)
+    (is (string= (format nil "036000291452,,8,1,2026-09-16 14:03:22,,,,,~d" at)
                  (string-trim '(#\Return) (second lines))))))
+
+(test the-set-photo-has-its-own-column
+  (let* ((at (encode-universal-time 0 0 14 16 9 2026 0))
+         (row (export-row (one-group "036000291452" at
+                                     :photo "mine.jpg" :shared-photo "set.jpg")
+                          0)))
+    (is (string= "mine.jpg" (eighth row)))
+    (is (string= "set.jpg" (ninth row)))))
 
 (test a-merged-row-reports-its-scans-and-both-times
   (let* ((first-at (encode-universal-time 0 0 14 16 9 2026 0))
@@ -65,7 +73,7 @@ lines\"" (csv-field (format nil "two~%lines"))))
     (is (string= "Blue paint, 1L" (second row)))
     (is (string= "damaged box" (seventh row)))
     (is (string= "20260917-140322.jpg" (eighth row)))
-    (is (string= (format nil "036000291452,\"Blue paint, 1L\",2,1,2026-09-16 14:00:00,,damaged box,20260917-140322.jpg,~d" at)
+    (is (string= (format nil "036000291452,\"Blue paint, 1L\",2,1,2026-09-16 14:00:00,,damaged box,20260917-140322.jpg,,~d" at)
                  (csv-line row)))))
 
 (test the-summary-counts-scans-and-items

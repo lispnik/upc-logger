@@ -104,6 +104,18 @@
     (set-photo log 0 nil)
     (is-false (annotated-p (log-entry log 0)))))
 
+(test a-set-photo-goes-on-every-scan-of-the-run
+  (let ((log (make-scan-log)))
+    (dotimes (i 3)
+      (record-scan log "111111111117" (+ 100 i)))
+    (let ((events (scan-log-entries log)))
+      (is (string= "set.jpg" (attach-shared-photo events "set.jpg")))
+      (is-true (every (lambda (event) (string= "set.jpg" (entry-shared-photo event))) events))
+      ;; It is the run's, not the scan's, and so does not annotate them.
+      (is-false (some #'annotated-p events))
+      (attach-shared-photo events "  ")
+      (is-true (every (lambda (event) (null (entry-shared-photo event))) events)))))
+
 (test setting-anything-on-an-event-that-is-not-there
   (let ((log (make-scan-log)))
     (is (null (nth-value 1 (set-name log 3 "x"))))
@@ -126,6 +138,7 @@
            (set-note log 0 "damaged box")
            (set-photo log 0 "20260917-140322.jpg")
            (set-name log 2 "Blue paint 1L")
+           (attach-shared-photo (scan-log-entries log) "set.jpg")
            (save-log log path)
            (save-log log path)                       ; over an existing file
            (multiple-value-bind (loaded status) (load-log path)

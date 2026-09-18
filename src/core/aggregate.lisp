@@ -32,7 +32,16 @@
   (entry-note (group-first-event group)))
 
 (defun group-photo (group)
+  "The picture of this scan, if it has one of its own."
   (entry-photo (group-first-event group)))
+
+(defun group-shared-photo (group)
+  "The picture of the whole run, if one was taken."
+  (entry-shared-photo (group-first-event group)))
+
+(defun group-display-photo (group)
+  "What to show on the row: its own picture, or the set's."
+  (or (group-photo group) (group-shared-photo group)))
 
 (defun group-count (group)
   "Items reported by every event in GROUP."
@@ -70,7 +79,14 @@ stands alone."
                    ;; Its own row, and it breaks the run around it.
                    (flush)
                    (push (%make-group (list event)) groups))
-                  ((and run (string= (entry-code (first run)) (entry-code event)))
+                  ;; The same code AND the same set photo: two runs
+                  ;; photographed separately are two sets, however alike the
+                  ;; codes, and merging them would say one picture covered
+                  ;; scans it never saw.
+                  ((and run
+                        (string= (entry-code (first run)) (entry-code event))
+                        (equal (entry-shared-photo (first run))
+                               (entry-shared-photo event)))
                    (push event run))
                   (t
                    (flush)
