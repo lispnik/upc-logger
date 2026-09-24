@@ -5,6 +5,8 @@
 #   make run-sim    build, install and launch it on the booted simulator
 #   make demo-sim   the same, launched with UPC_LOGGER_DEMO=1 (scripted scans)
 #   make device     build for iphoneos, install on a connected iPhone and launch
+#   make ipa        an App Store build, packaged as build/UPC-Logger.ipa
+#   make testflight make ipa, check it, validate it and upload it (doc/testflight.md)
 #   make icon       redraw the icon (SBCL + objc + AppKit)
 #   make deps       restore ocicl dependencies, here and in objc
 #   make clean
@@ -14,13 +16,22 @@
 #
 #   IOS_SIGNING_IDENTITY = Apple Development: Your Name (XXXXXXXXXX)
 #   IOS_PROVISIONING_PROFILE = /path/to/profile.mobileprovision
+#
+# and `make testflight' needs a distribution identity, an App Store profile
+# and an App Store Connect API key, also in local.mk:
+#
+#   IOS_DISTRIBUTION_IDENTITY = Apple Distribution: Your Name (TEAMID1234)
+#   IOS_DISTRIBUTION_PROFILE = /path/to/UPC_Logger_App_Store.mobileprovision
+#   IOS_DEVELOPMENT_TEAM = TEAMID1234
+#   ASC_KEY_ID = XXXXXXXXXX
+#   ASC_ISSUER_ID = xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 -include local.mk
 
 OBJC_DIR ?= $(HOME)/Projects/common-lisp/objc
 IOS_APP_DIR ?= $(HOME)/Projects/common-lisp/asdf-ios-app
 SBCL ?= sbcl
-BUNDLE_ID = com.lispnik.upc-logger
+BUNDLE_ID = com.burnsidemk.upclogger
 
 # A matched host ECL and iOS prefixes.  If they are not where ECL_DIR says,
 # nothing is exported and asdf-ios-app falls back to what
@@ -64,7 +75,7 @@ BUILD_AND_INSTALL_SIM = \
   (uiop:symbol-call :asdf-ios-app "INSTALL-IN-SIMULATOR" \
     (first (uiop:symbol-call :asdf-ios-app "MAKE-APP" "upc-logger-app" :platforms (list :simulator))))
 
-.PHONY: all test sim run-sim demo-sim device icon deps clean
+.PHONY: all test sim run-sim demo-sim device ipa testflight icon deps clean
 
 all: test sim
 
@@ -92,6 +103,30 @@ device:
 	         (device (uiop:symbol-call :asdf-ios-app "INSTALL-ON-DEVICE" app))) \
 	    (uiop:run-program (list "xcrun" "devicectl" "device" "process" "launch" "--device" device "$(BUNDLE_ID)") \
 	                      :output t :error-output t :ignore-error-status t)))
+
+# The build number every upload must raise: one per commit, so it never goes
+# backwards and says which commit a tester is holding.  BUILD=1.0.20 to choose.
+BUILD ?= 1.0.$(shell git rev-list --count HEAD)
+IPA = build/UPC-Logger.ipa
+
+DIST_ENV = UPC_LOGGER_DISTRIBUTION=1 UPC_LOGGER_BUILD="$(BUILD)" \
+           IOS_SIGNING_IDENTITY="$(IOS_DISTRIBUTION_IDENTITY)" \
+           IOS_PROVISIONING_PROFILE="$(IOS_DISTRIBUTION_PROFILE)" \
+           IOS_DEVELOPMENT_TEAM="$(IOS_DEVELOPMENT_TEAM)"
+
+# From a clean build/iphoneos: a stale bundle can lack the compiled icon, and
+# the upload is then refused for a missing CFBundleIconName.
+ipa:
+	@test -n "$(IOS_DISTRIBUTION_IDENTITY)" -a -n "$(IOS_DISTRIBUTION_PROFILE)" || { echo "error: set IOS_DISTRIBUTION_IDENTITY and IOS_DISTRIBUTION_PROFILE in local.mk" >&2; exit 1; }
+	rm -rf build/iphoneos "$(IPA)"
+	$(DIST_ENV) $(call ecl,\
+	  (asdf:load-system "asdf-ios-app") \
+	  (uiop:symbol-call :asdf-ios-app "EXPORT-IPA" \
+	    (first (uiop:symbol-call :asdf-ios-app "MAKE-APP" "upc-logger-app" :platforms (list :device))) \
+	    :output (merge-pathnames "$(IPA)" (uiop:getcwd))))
+
+testflight: ipa
+	ASC_KEY_ID="$(ASC_KEY_ID)" ASC_ISSUER_ID="$(ASC_ISSUER_ID)" tools/testflight.sh "$(IPA)"
 
 # The icon is drawn by tools/icon.lisp; the PNG is committed so that building
 # the app needs neither SBCL nor AppKit.  ImageMagick drops the alpha channel,

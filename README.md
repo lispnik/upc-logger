@@ -99,6 +99,8 @@ IOS_PROVISIONING_PROFILE = /path/to/profile.mobileprovision
 
 The phone must be unlocked, with Developer Mode on.
 
+`make testflight` builds for the App Store and uploads to TestFlight; [doc/testflight.md](doc/testflight.md) has the one-time setup.
+
 ## License
 
 MIT
