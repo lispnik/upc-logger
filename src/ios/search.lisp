@@ -17,6 +17,7 @@
 (defvar *search-delegate* nil "Kept: UIKit holds a delegate weakly.")
 (defvar *search-bottom* nil "The bar's bottom constraint, moved by the keyboard.")
 (defvar *keyboard-observer* nil "Kept: the notification centre holds it weakly.")
+(defvar *outside-tap* nil "Dismisses the keyboard on a tap elsewhere; enabled while editing.")
 
 (defun apply-query (text)
   "Filter by TEXT, and put the chart over whatever it matches."
@@ -59,12 +60,20 @@
 
 (objc:define-objc-method ("searchBarTextDidBeginEditing:" :void)
     ((self search-delegate) (bar objc:objc-object-pointer))
-  (handler-case (objc:invoke bar "setShowsCancelButton:animated:" t t)
+  (handler-case
+      (progn
+        (objc:invoke bar "setShowsCancelButton:animated:" t t)
+        (when *outside-tap*
+          (objc:invoke *outside-tap* "setEnabled:" t)))
     (serious-condition (condition) (note "search begin: ~a" condition))))
 
 (objc:define-objc-method ("searchBarTextDidEndEditing:" :void)
     ((self search-delegate) (bar objc:objc-object-pointer))
-  (handler-case (objc:invoke bar "setShowsCancelButton:animated:" nil t)
+  (handler-case
+      (progn
+        (objc:invoke bar "setShowsCancelButton:animated:" nil t)
+        (when *outside-tap*
+          (objc:invoke *outside-tap* "setEnabled:" nil)))
     (serious-condition (condition) (note "search end: ~a" condition))))
 
 (objc:define-objc-method ("searchBar:selectedScopeButtonIndexDidChange:" :void)
@@ -78,6 +87,25 @@
       (note "scope: ~a" condition))))
 
 ;;; The keyboard ------------------------------------------------------------------
+
+(defun on-outside-tap (recognizer)
+  "A tap anywhere but the bar puts the keyboard away, the way the Search key does."
+  (handler-case
+      (unless (objc:invoke *search-bar* "pointInside:withEvent:"
+                           (objc:invoke recognizer "locationInView:" *search-bar*) nil)
+        (objc:invoke *search-bar* "resignFirstResponder"))
+    (serious-condition (condition)
+      (note "outside tap: ~a" condition))))
+
+(defun watch-outside-taps (root)
+  "Put the tap recognizer on ROOT, off until editing begins.  Touches go through
+as well, so the tap that dismisses also presses whatever it landed on."
+  (setf *outside-tap* (ui:keep (objc:invoke (objc:invoke "UITapGestureRecognizer" "alloc")
+                                            "initWithTarget:action:"
+                                            (ui:action-target #'on-outside-tap) "fire:")))
+  (objc:invoke *outside-tap* "setCancelsTouchesInView:" nil)
+  (objc:invoke *outside-tap* "setEnabled:" nil)
+  (objc:invoke root "addGestureRecognizer:" *outside-tap*))
 
 (defun keyboard-height (notification)
   "How much of the screen the keyboard is about to cover, in points."
@@ -147,4 +175,5 @@
     (setf *search-bottom* bottom)
     (objc:invoke bottom "setActive:" t))
   (watch-keyboard)
+  (watch-outside-taps root)
   *search-bar*)
