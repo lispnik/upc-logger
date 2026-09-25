@@ -118,6 +118,9 @@
   (objc:invoke *search-bar* "setSearchBarStyle:" 2)          ; minimal
   (objc:invoke *search-bar* "setAutocapitalizationType:" 0)
   (objc:invoke *search-bar* "setAutocorrectionType:" 1)      ; no
+  ;; The Search key is how the keyboard goes away, so it stays live on an empty
+  ;; field; by default UIKit greys it out until something has been typed.
+  (objc:invoke *search-bar* "setEnablesReturnKeyAutomatically:" nil)
   ;; The scope strip carries the one control that has nowhere else to go: the
   ;; row above is already holding the range, Reset and Share.
   ;; A Lisp vector, which INVOKE turns into a temporary NSArray.  Not

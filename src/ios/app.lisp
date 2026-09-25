@@ -156,6 +156,12 @@ prompt -- so a simulator shows every part of the app without a finger."
                                   (when *search-bar*
                                     (objc:invoke *search-bar* "setText:" "paint"))
                                   (apply-query "paint"))))))
+    (when (ext:getenv "UPC_LOGGER_DEMO_FOCUS")
+      ;; The empty search field, focused: what a tap on it shows, keyboard up.
+      (setf steps (append steps
+                          (list (lambda ()
+                                  (when *search-bar*
+                                    (objc:invoke *search-bar* "becomeFirstResponder")))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_PROMPT")
       (setf steps (append steps (list (lambda () (edit-count (log-entry *log* 0)))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_SHARE")
