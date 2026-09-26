@@ -79,9 +79,9 @@
 (objc:define-objc-method ("searchBar:selectedScopeButtonIndexDidChange:" :void)
     ((self search-delegate) (bar objc:objc-object-pointer) (index (:signed :long-long)))
   (declare (ignore bar))
-  ;; 0 groups runs of a code into one row; 1 shows every scan.
+  ;; 0 shows every scan; 1 groups runs of a code into one row.
   (handler-case
-      (progn (setf *aggregated* (zerop index))
+      (progn (setf *aggregated* (eql index 1))
              (notify-window-change))
     (serious-condition (condition)
       (note "scope: ~a" condition))))
@@ -155,9 +155,9 @@ as well, so the tap that dismisses also presses whatever it landed on."
   ;; -arrayWithObjects:, which is variadic: on Apple silicon the variable
   ;; arguments go on the stack, so calling it plainly reads garbage, and the
   ;; bridge refuses rather than pretend otherwise.
-  (objc:invoke *search-bar* "setScopeButtonTitles:" (vector "Grouped" "Every scan"))
+  (objc:invoke *search-bar* "setScopeButtonTitles:" (vector "All" "Grouped"))
   (objc:invoke *search-bar* "setShowsScopeBar:" t)
-  (objc:invoke *search-bar* "setSelectedScopeButtonIndex:" (if *aggregated* 0 1))
+  (objc:invoke *search-bar* "setSelectedScopeButtonIndex:" (if *aggregated* 1 0))
   (setf *search-delegate* (ui:keep (make-instance 'search-delegate)))
   (objc:invoke *search-bar* "setDelegate:" (objc:objc-object-pointer *search-delegate*))
   (objc:invoke root "addSubview:" *search-bar*)

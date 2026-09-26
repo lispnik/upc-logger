@@ -104,7 +104,7 @@ prompt -- so a simulator shows every part of the app without a finger."
                                   ;; turns it on before saying "grouped".
                                   (setf *aggregated* t)
                                   (when *search-bar*
-                                    (objc:invoke *search-bar* "setSelectedScopeButtonIndex:" 0))
+                                    (objc:invoke *search-bar* "setSelectedScopeButtonIndex:" 1))
                                   (notify-window-change)
                                   (note "demo: grouped, ~d row~:p over ~d scan~:p"
                                         (length (visible-groups))
@@ -131,7 +131,7 @@ prompt -- so a simulator shows every part of the app without a finger."
                                 (lambda ()
                                   (setf *aggregated* nil)
                                   (when *search-bar*
-                                    (objc:invoke *search-bar* "setSelectedScopeButtonIndex:" 1))
+                                    (objc:invoke *search-bar* "setSelectedScopeButtonIndex:" 0))
                                   (notify-window-change)
                                   (note "demo: every scan, ~d rows" (length (visible-groups))))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_SEARCH")
