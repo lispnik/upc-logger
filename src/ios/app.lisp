@@ -162,6 +162,29 @@ prompt -- so a simulator shows every part of the app without a finger."
                           (list (lambda ()
                                   (when *search-bar*
                                     (objc:invoke *search-bar* "becomeFirstResponder")))))))
+    (when (ext:getenv "UPC_LOGGER_DEMO_TAP_OUTSIDE")
+      ;; What a tap does with the keyboard up, from a point rather than a finger:
+      ;; one on the bar keeps it, one above the bar puts it away.
+      (flet ((tap-at (place where)
+               (lambda ()
+                 (when *search-bar*
+                   ;; The bar's own middle, since its height changes while
+                   ;; editing: the scope strip goes away.
+                   (let* ((bounds (objc:invoke *search-bar* "bounds"))
+                          (point (if (eq place :on-bar)
+                                     (vector (/ (aref bounds 2) 2) (/ (aref bounds 3) 2))
+                                     place)))
+                     (dismiss-unless-on-bar point))
+                   (note "demo: tap ~a, keyboard ~:[down~;up~]" where
+                         (objc:invoke-bool *search-bar* "isFirstResponder"))))))
+        (setf steps (append steps
+                            (list (lambda ()
+                                    (when *search-bar*
+                                      (objc:invoke *search-bar* "becomeFirstResponder")
+                                      (note "demo: focused, keyboard ~:[down~;up~]"
+                                            (objc:invoke-bool *search-bar* "isFirstResponder"))))
+                                  (tap-at :on-bar "on the bar")
+                                  (tap-at #(20 -200) "above the bar"))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_PROMPT")
       (setf steps (append steps (list (lambda () (edit-count (log-entry *log* 0)))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_SHARE")

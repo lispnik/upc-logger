@@ -88,12 +88,16 @@
 
 ;;; The keyboard ------------------------------------------------------------------
 
+(defun dismiss-unless-on-bar (point)
+  "Put the keyboard away unless POINT, in the bar's coordinates, is on the bar.
+INVOKE-BOOL, not INVOKE: a BOOL comes back from INVOKE as 0 or 1, and 0 is true."
+  (unless (objc:invoke-bool *search-bar* "pointInside:withEvent:" point nil)
+    (objc:invoke *search-bar* "resignFirstResponder")))
+
 (defun on-outside-tap (recognizer)
   "A tap anywhere but the bar puts the keyboard away, the way the Search key does."
   (handler-case
-      (unless (objc:invoke *search-bar* "pointInside:withEvent:"
-                           (objc:invoke recognizer "locationInView:" *search-bar*) nil)
-        (objc:invoke *search-bar* "resignFirstResponder"))
+      (dismiss-unless-on-bar (objc:invoke recognizer "locationInView:" *search-bar*))
     (serious-condition (condition)
       (note "outside tap: ~a" condition))))
 
