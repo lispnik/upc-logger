@@ -65,6 +65,7 @@ Apple's own **Options** panel — the one offering lossless or most-compatible f
 | `src/ios/share.lisp` | CSV and PDF, and the share sheet. |
 | `tests/` | FiveAM tests for the core, run on the Mac. |
 | `tools/icon.lisp` | Draws the icon with AppKit; `make icon` regenerates it. |
+| `tools/test-sheet.py` | A PDF of 46 UPC-A barcodes, six of them repeats, to scan off a Mac screen while testing. |
 
 ## Building
 
