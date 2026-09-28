@@ -124,9 +124,18 @@ as well, so the tap that dismisses also presses whatever it landed on."
                (covered (- (aref screen 3) (aref frame 1))))
           (max 0 covered)))))
 
+(defun local-keyboard-p (notification)
+  "Whether the keyboard is this app's own.  Another process's keyboard -- the
+Messages compose sheet a share opens -- is announced here too, and its hide
+never is, so following it would leave the bar stranded halfway up the screen."
+  (let ((local (objc:invoke (objc:invoke notification "userInfo")
+                            "objectForKey:" "UIKeyboardIsLocalUserInfoKey")))
+    (or (cffi:null-pointer-p local)
+        (objc:invoke-bool local "boolValue"))))
+
 (defun follow-keyboard (notification)
   (handler-case
-      (when *search-bottom*
+      (when (and *search-bottom* (local-keyboard-p notification))
         (let ((height (keyboard-height notification)))
           (objc:invoke *search-bottom* "setConstant:" (float (- height) 1d0))
           (objc:invoke (ui:root-view) "layoutIfNeeded")))

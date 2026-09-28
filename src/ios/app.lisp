@@ -185,6 +185,24 @@ prompt -- so a simulator shows every part of the app without a finger."
                                             (objc:invoke-bool *search-bar* "isFirstResponder"))))
                                   (tap-at :on-bar "on the bar")
                                   (tap-at #(20 -200) "above the bar"))))))
+    (when (ext:getenv "UPC_LOGGER_DEMO_REMOTE_KEYBOARD")
+      ;; What sharing to Messages does: another process's keyboard comes up,
+      ;; the notification reaches this app too, and no hide ever follows.
+      (setf steps (append steps
+                          (list (lambda ()
+                                  (let* ((screen (objc:invoke (objc:invoke "UIScreen" "mainScreen") "bounds"))
+                                         (frame (vector 0d0 (- (aref screen 3) 336d0) (aref screen 2) 336d0))
+                                         (info (objc:invoke "NSMutableDictionary" "dictionary")))
+                                    (objc:invoke info "setObject:forKey:"
+                                                 (objc:invoke "NSValue" "valueWithCGRect:" frame)
+                                                 "UIKeyboardFrameEndUserInfoKey")
+                                    (objc:invoke info "setObject:forKey:"
+                                                 (objc:invoke "NSNumber" "numberWithBool:" nil)
+                                                 "UIKeyboardIsLocalUserInfoKey")
+                                    (objc:invoke (objc:invoke "NSNotificationCenter" "defaultCenter")
+                                                 "postNotificationName:object:userInfo:"
+                                                 "UIKeyboardWillChangeFrameNotification" nil info)
+                                    (note "demo: another app's keyboard came up")))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_PROMPT")
       (setf steps (append steps (list (lambda () (edit-count (log-entry *log* 0)))))))
     (when (ext:getenv "UPC_LOGGER_DEMO_SHARE")
@@ -203,7 +221,15 @@ prompt -- so a simulator shows every part of the app without a finger."
                                       (serious-condition (condition)
                                         (note "export failed: ~a" condition)))))
                                 (lambda () (probe-representations))
-                                (lambda () (share-export *chart*))))))
+                                (lambda () (share-export *chart*)))))
+      (when (ext:getenv "UPC_LOGGER_DEMO_SHARE_CLOSE")
+        ;; And put it away again, as a tap outside the sheet would.
+        (setf steps (append steps
+                            (list (lambda () nil) (lambda () nil)
+                                  (lambda ()
+                                    (objc:invoke (ui:root-controller)
+                                                 "dismissViewControllerAnimated:completion:" t nil)
+                                    (note "demo: share sheet closed")))))))
     (ui:after-every 0.8 (lambda (timer)
                           (if steps
                               (funcall (pop steps))
